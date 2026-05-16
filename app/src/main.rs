@@ -1,3 +1,5 @@
+use std::{thread::sleep, time::Duration};
+
 use simulation::{Cell, Grid, World};
 use macroquad::prelude::*;
 
@@ -21,7 +23,7 @@ fn cell_to_color(cell : Cell) -> [u8; 4] {
 
 #[macroquad::main("SandFalls")]
 async fn main() {
-    let world = World::new((256, 256));
+    let world = World::new((512, 512));
     
     if let Ok(mut world) = world {
         let num_of_chunks_xy = world.num_of_chunks_xy();
@@ -29,10 +31,8 @@ async fn main() {
         let mut textures : Vec<Texture2D> = std::iter::repeat_with(init_chunk_texture).take(num_of_chunks_total).collect();
         loop {
             world.tick();
+            println!("Tick");
             clear_background(BLACK);
-            
-
-
             for chunk_index in 0..num_of_chunks_total {
                 let xy = Grid::index_to_coord(chunk_index, num_of_chunks_xy);
                 let (x, y) = xy;
@@ -48,6 +48,7 @@ async fn main() {
                     bytes[4 * local_index + 3] = a;
                 }
 
+
                 texture.update_from_bytes(
                     World::CHUNK_SIZE as u32,
                     World::CHUNK_SIZE as u32,
@@ -60,7 +61,9 @@ async fn main() {
                     (y * World::CHUNK_SIZE) as f32,
                     WHITE
                 );
+
             }
+            // sleep(Duration::from_secs(1));
             
             next_frame().await
         }
