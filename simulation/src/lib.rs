@@ -100,21 +100,28 @@ impl Simulation {
 
 
     fn calc_push_vector(read_world : &WorldView<Cell>, global_coord : IVec2) -> IVec2 {
-        let cell_center      = read_world.get_cell(global_coord);
-        let cell_below       = read_world.get_cell(global_coord + ivec2( 0, 1));
-        let cell_below_left  = read_world.get_cell(global_coord + ivec2(-1, 1));
-        let cell_below_right = read_world.get_cell(global_coord + ivec2( 1, 1));
+        let cell_center  = read_world.get_cell(global_coord);
+        let cell_below   = read_world.get_cell(global_coord + ivec2( 0, 1));
+        let (offset_a, offset_b) = if ::rand::random_bool(0.5) {
+            (ivec2(-1, 1), ivec2(1, 1))
+        }
+        else {
+            (ivec2(1, 1), ivec2(-1, 1))
+        };
+        let cell_below_a = read_world.get_cell(global_coord + offset_a);
+        let cell_below_b = read_world.get_cell(global_coord + offset_b);
+            
         return match cell_center {
             Cell::AIR => IVec2::ZERO,
             Cell::SAND => {
                 if cell_below == Cell::AIR {
                     return ivec2(0, 1)
                 }
-                if cell_below_left == Cell::AIR {
-                    return ivec2(-1, 1)
+                if cell_below_a == Cell::AIR {
+                    return offset_a
                 }
-                if cell_below_right == Cell::AIR {
-                    return ivec2(1, 1)
+                if cell_below_b == Cell::AIR {
+                    return offset_b
                 }
                 else {
                     return IVec2::ZERO
