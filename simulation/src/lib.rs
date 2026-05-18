@@ -1,15 +1,22 @@
-use macroquad::math::UVec2;
-use rayon::{iter::{IndexedParallelIterator, ParallelIterator}, slice::ParallelSliceMut};
+use macroquad::math::{IVec2, UVec2};
+use macroquad::prelude::*;
 
 mod double_buffer;
 use double_buffer::DoubleBuffer;
+
+mod world_view;
+use world_view::WorldView;
+
+mod chunk_view;
+use chunk_view::ChunkViewMut;
+
 
 pub enum Error {
     InvalidWorldSize,
     CellOutOfBounds,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Cell {
     AIR, SAND, STONE,
 }
@@ -18,94 +25,83 @@ pub enum Cell {
 pub struct Grid {}
 
 impl Grid {
-    pub fn coord_to_index(coord : (usize, usize), grid_size : (usize, usize)) -> usize {
-        return (coord.1 * grid_size.0 + coord.0) as usize;
+    pub fn map2Dto1D(coord : IVec2, grid_size : IVec2) -> usize {
+        return (coord.y * grid_size.x + coord.x) as usize;
     }
 
-    pub fn index_to_coord(index : usize, grid_size : (usize, usize)) -> (usize, usize) {
-        let (grid_size_x, _grid_size_y) = grid_size;
-        let x = index % grid_size_x;
-        let y = index / grid_size_x;
-        return (x, y)
-    }   
+    pub fn map1Dto2D(index : usize, grid_size : IVec2) -> IVec2 {
+        let x = (index as i32) % grid_size.x;
+        let y = (index as i32) / grid_size.x;
+        return ivec2(x, y)
+    }
 }
 
 
 
-pub struct World {
+
+
+pub struct Simulation {
     cells : DoubleBuffer<Vec<Cell>>,
-    world_size : (usize, usize),
+    world_size : IVec2,
 }
 
-impl World {
+impl Simulation {
     pub const CHUNK_SIZE : usize = 256;
     pub const CELLS_PER_CHUNK : usize = Self::CHUNK_SIZE * Self::CHUNK_SIZE;
 
 
-    pub fn new(world_size : (usize, usize)) -> Result<World, Error> {
-        if (world_size.0 as usize % Self::CHUNK_SIZE) != 0 {
+    pub fn new(world_size : IVec2) -> Result<Simulation, Error> {
+        if (world_size.x as usize % Self::CHUNK_SIZE) != 0 {
             return Err(Error::InvalidWorldSize);
         } 
-        if (world_size.1 as usize % Self::CHUNK_SIZE) != 0 {
+        if (world_size.y as usize % Self::CHUNK_SIZE) != 0 {
             return Err(Error::InvalidWorldSize);
         }
-        let num_of_cells : usize = (world_size.0 * world_size.1) as usize;
+        let num_of_cells : usize = (world_size.x * world_size.y) as usize;
         let cells = Vec::from_iter(
-            std::iter::repeat_with(|| match rand::random::<i32>() % 3 {
+            std::iter::repeat_with(|| match ::rand::random::<i32>() % 3 {
                 0 => Cell::AIR,
                 1 => Cell::SAND,
-                2 => Cell::AIR,
-                _ => Cell::AIR, 
+                2 => Cell::STONE,
+                _ => Cell::AIR,
             })
             .take(num_of_cells));
-        return Ok(World {
+        return Ok(Simulation {
             cells : DoubleBuffer::new(cells),
             world_size,
         });
     }
 
 
-    pub fn num_of_chunks_xy(&self) -> (usize, usize) {
-        let num_chunks_x = self.world_size.0 / Self::CHUNK_SIZE;
-        let num_chunks_y = self.world_size.1 / Self::CHUNK_SIZE;
-        return (num_chunks_x, num_chunks_y);
+    pub fn num_of_chunks_xy(&self) -> IVec2 {
+        return self.world_size / (Self::CHUNK_SIZE as i32);
     }
 
 
     pub fn num_of_chunks(&self) -> usize {
-        let (num_chunks_x, num_chunks_y) = self.num_of_chunks_xy();
-        return num_chunks_x * num_chunks_y;
+        return self.num_of_chunks_xy().dot(IVec2::new(1, 1)) as usize;
     }
 
 
-    fn read_cell(read_world : &[Cell], world_size : (usize, usize), global_coord : (usize, usize), offset : (i32, i32)) -> Cell {
-        let (global_coord_x, global_coord_y) = global_coord;
-        let (offset_x, offset_y) = offset;
-        let global_target_coord = (
-            (global_coord_x as i32) + offset_x,
-            (global_coord_y as i32) + offset_y,
-        );
-        let (global_target_coord_x, global_target_coord_y) = global_target_coord;
-        let (world_size_x, world_size_y) = world_size;
-        if global_target_coord_x < 0 {
+    fn read_cell(read_world : &[Cell], world_size : IVec2, global_coord : IVec2, offset : IVec2) -> Cell {
+        let global_target_coord = global_coord + offset;
+        if global_target_coord.x < 0 {
             return Cell::STONE;
         };
-        if global_target_coord_y < 0 {
+        if global_target_coord.y < 0 {
             return Cell::STONE;
         };
-        if global_target_coord_x >= world_size_x as i32 {
+        if global_target_coord.x >= world_size.x as i32 {
             return Cell::STONE;
         }
-        if global_target_coord_y >= world_size_y as i32 {
+        if global_target_coord.y >= world_size.y as i32 {
             return Cell::STONE;
         }
-        let local_coord_x = (global_target_coord_x as usize) % Self::CHUNK_SIZE;
-        let local_coord_y = (global_target_coord_y as usize) % Self::CHUNK_SIZE;
-        let local_index   = Grid::coord_to_index((local_coord_x, local_coord_y), (Self::CHUNK_SIZE, Self::CHUNK_SIZE));
+        let local_coord = global_target_coord % (Self::CHUNK_SIZE as i32); 
+        let local_index = Grid::map2Dto1D(local_coord, IVec2::ONE * (Self::CHUNK_SIZE as i32));
 
-        let chunk_coord_x = (global_target_coord_x as usize) / Self::CHUNK_SIZE;
-        let chunk_coord_y = (global_target_coord_y as usize) / Self::CHUNK_SIZE;
-        let chunk_index   = Grid::coord_to_index((chunk_coord_x, chunk_coord_y), (world_size_x / Self::CHUNK_SIZE, world_size_y / Self::CHUNK_SIZE));
+        let chunk_coord = global_target_coord / (Self::CHUNK_SIZE as i32); 
+        let chunk_index = Grid::map2Dto1D(chunk_coord, world_size / (Self::CHUNK_SIZE as i32));
         let global_index = chunk_index * Self::CELLS_PER_CHUNK + local_index;
         // println!("A: {global_index}");
         // println!("{chunk_index}");
@@ -113,24 +109,19 @@ impl World {
     }
 
 
-    fn tick_chunk(chunk_index : usize, write_chunk : &mut [Cell], read_world : &[Cell], world_size : (usize, usize)) {
+    fn tick_chunk(write_chunk : &mut ChunkViewMut, read_world : &WorldView) {
         for local_index in 0..Self::CELLS_PER_CHUNK {
             // let (local_x, local_y) = Grid::index_to_coord(local_index, (Self::CHUNK_SIZE, Self::CHUNK_SIZE));
-            let local_coord = Grid::index_to_coord(local_index, (Self::CHUNK_SIZE, Self::CHUNK_SIZE));
-            let chunk_coord = Grid::index_to_coord(chunk_index, (world_size.0 / Self::CHUNK_SIZE, world_size.1 / Self::CHUNK_SIZE));
-            let global_coord = (
-                local_coord.0 + chunk_coord.0 * Self::CHUNK_SIZE,
-                local_coord.1 + chunk_coord.1 * Self::CHUNK_SIZE,
-            );
+            let local_coord = Grid::map1Dto2D(local_index, IVec2::ONE * (Self::CHUNK_SIZE as i32));
+            let chunk_coord = Grid::map1Dto2D(write_chunk.index(), read_world.size() / (Self::CHUNK_SIZE as i32));
+            let global_coord = local_coord + chunk_coord * (Self::CHUNK_SIZE as i32);
             // println!("{global_coord:?}");
 
-            let read_cell       = Self::read_cell(read_world, world_size, global_coord, (0,  0));
-            let read_cell_above = Self::read_cell(read_world, world_size, global_coord, (0, -1));
-            let read_cell_below = Self::read_cell(read_world, world_size, global_coord, (0,  1));
+            let read_cell       = read_world.get_cell(global_coord);
+            let read_cell_above = read_world.get_cell(global_coord + ivec2(0, -1));
+            let read_cell_below = read_world.get_cell(global_coord + ivec2(0, 1));
             
-            // write_chunk[local_index] = read_cell;
-
-            write_chunk[local_index] = match read_cell {
+            let new_cell = match read_cell {
                 Cell::AIR => {
                     match read_cell_above {
                         Cell::AIR => Cell::AIR,
@@ -147,26 +138,59 @@ impl World {
                 }
                 Cell::STONE => Cell::STONE,
             };
+            write_chunk.write_cell(new_cell, local_coord);
         }
         // println!("{chunk_index:?} {:?}", write_chunk[0])
+    }
+
+
+    fn calc_push_vector(read_world : &WorldView, global_coord : IVec2) -> IVec2 {
+        let cell_center = read_world.get_cell(global_coord);
+        let cell_below = read_world.get_cell(global_coord + ivec2(0, 1));
+        if cell_below == Cell::AIR && cell_center == Cell::SAND {
+            return ivec2(0, 1);
+        }
+        else {
+            return IVec2::ZERO;
+        }
+    }
+
+
+    fn update_push_vectors(chunk_index : usize, write_chunk : &mut [IVec2], read_world : &WorldView) {
+        let chunk_coord = Grid::map1Dto2D(chunk_index, read_world.size() / (Self::CHUNK_SIZE as i32));
+        for local_index in 0..Self::CELLS_PER_CHUNK {
+            let local_coord = Grid::map1Dto2D(local_index, IVec2::ONE * (Self::CHUNK_SIZE as i32));
+            let global_coord = chunk_coord * (Self::CHUNK_SIZE as i32) + local_coord;
+            write_chunk[local_index] = Self::calc_push_vector(read_world, global_coord);
+        }
     }
 
 
     pub fn tick(&mut self) {
         let (read_buffer, write_buffer) = self.cells.pick_read_and_write_buffer();
 
+        let num_of_cells : usize =  self.world_size.dot(IVec2::ONE) as usize;
+        let mut push_buffer = Vec::from_iter(std::iter::repeat_with(||IVec2::ZERO).take(num_of_cells));
+
+        let read_world = WorldView::new(read_buffer, self.world_size);
+
+        // push_buffer
+        //     .chunks_mut(Self::CELLS_PER_CHUNK)
+        //     .enumerate()
+        //     .for_each(|(chunk_index, chunk)| Self::update_push_vectors(chunk_index, chunk, &read_world));
+
         write_buffer
             .chunks_mut(Self::CELLS_PER_CHUNK)
             .enumerate()
-            .for_each(|(chunk_index, chunk)| Self::tick_chunk(chunk_index, chunk, read_buffer, self.world_size));
+            .for_each(|(chunk_index, chunk)| Self::tick_chunk(&mut ChunkViewMut::new(chunk_index, chunk), &read_world));
         
         self.swap_buffers()
     }
 
 
-    pub fn get_chunk(&self, coord : (usize, usize)) -> &[Cell] {
+    pub fn get_chunk(&self, coord : IVec2) -> &[Cell] {
         let num_chunks_xy = self.num_of_chunks_xy();
-        let chunk_index = Grid::coord_to_index(coord, num_chunks_xy);
+        let chunk_index = Grid::map2Dto1D(coord, num_chunks_xy);
         let global_index = Self::CELLS_PER_CHUNK * chunk_index;
         let read_buffer = self.cells.get_read_buffer();
         let begin = global_index;
