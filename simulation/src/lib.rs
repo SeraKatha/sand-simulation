@@ -93,79 +93,33 @@ impl Simulation {
 
 
     pub fn num_of_chunks(&self) -> usize {
-        return self.num_of_chunks_xy().dot(IVec2::new(1, 1)) as usize;
-    }
-
-
-    fn read_cell(read_world : &[Cell], world_size : IVec2, global_coord : IVec2, offset : IVec2) -> Cell {
-        let global_target_coord = global_coord + offset;
-        if global_target_coord.x < 0 {
-            return Cell::STONE;
-        };
-        if global_target_coord.y < 0 {
-            return Cell::STONE;
-        };
-        if global_target_coord.x >= world_size.x as i32 {
-            return Cell::STONE;
-        }
-        if global_target_coord.y >= world_size.y as i32 {
-            return Cell::STONE;
-        }
-        let local_coord = global_target_coord % (Self::CHUNK_SIZE as i32); 
-        let local_index = Grid::map2Dto1D(local_coord, IVec2::ONE * (Self::CHUNK_SIZE as i32));
-
-        let chunk_coord = global_target_coord / (Self::CHUNK_SIZE as i32); 
-        let chunk_index = Grid::map2Dto1D(chunk_coord, world_size / (Self::CHUNK_SIZE as i32));
-        let global_index = chunk_index * Self::CELLS_PER_CHUNK + local_index;
-        // println!("A: {global_index}");
-        // println!("{chunk_index}");
-        return read_world[global_index];
-    }
-
-
-    fn tick_chunk(write_chunk : &mut ChunkViewMut, read_world : &WorldView<Cell>) {
-        for local_index in 0..Self::CELLS_PER_CHUNK {
-            // let (local_x, local_y) = Grid::index_to_coord(local_index, (Self::CHUNK_SIZE, Self::CHUNK_SIZE));
-            let local_coord = Grid::map1Dto2D(local_index, IVec2::ONE * (Self::CHUNK_SIZE as i32));
-            let chunk_coord = Grid::map1Dto2D(write_chunk.index(), read_world.size() / (Self::CHUNK_SIZE as i32));
-            let global_coord = local_coord + chunk_coord * (Self::CHUNK_SIZE as i32);
-            // println!("{global_coord:?}");
-
-            let read_cell       = read_world.get_cell(global_coord);
-            let read_cell_above = read_world.get_cell(global_coord + ivec2(0, -1));
-            let read_cell_below = read_world.get_cell(global_coord + ivec2(0, 1));
-            
-            let new_cell = match read_cell {
-                Cell::AIR => {
-                    match read_cell_above {
-                        Cell::AIR => Cell::AIR,
-                        Cell::SAND => Cell::SAND,
-                        Cell::STONE => Cell::AIR,
-                    }
-                }
-                Cell::SAND  => {
-                    match read_cell_below {
-                        Cell::AIR => Cell::AIR,
-                        Cell::SAND => Cell::SAND,
-                        Cell::STONE => Cell::SAND,
-                    }
-                }
-                Cell::STONE => Cell::STONE,
-            };
-            write_chunk.write_cell(new_cell, local_coord);
-        }
-        // println!("{chunk_index:?} {:?}", write_chunk[0])
+        let num_of_chunks = self.num_of_chunks_xy();
+        return (num_of_chunks.x * num_of_chunks.y) as usize;
     }
 
 
     fn calc_push_vector(read_world : &WorldView<Cell>, global_coord : IVec2) -> IVec2 {
-        let cell_center = read_world.get_cell(global_coord);
-        let cell_below = read_world.get_cell(global_coord + ivec2(0, 1));
-        if cell_below == Cell::AIR && cell_center == Cell::SAND {
-            return ivec2(0, 1);
-        }
-        else {
-            return IVec2::ZERO;
+        let cell_center      = read_world.get_cell(global_coord);
+        let cell_below       = read_world.get_cell(global_coord + ivec2( 0, 1));
+        let cell_below_left  = read_world.get_cell(global_coord + ivec2(-1, 1));
+        let cell_below_right = read_world.get_cell(global_coord + ivec2( 1, 1));
+        return match cell_center {
+            Cell::AIR => IVec2::ZERO,
+            Cell::SAND => {
+                if cell_below == Cell::AIR {
+                    return ivec2(0, 1)
+                }
+                if cell_below_left == Cell::AIR {
+                    return ivec2(-1, 1)
+                }
+                if cell_below_right == Cell::AIR {
+                    return ivec2(1, 1)
+                }
+                else {
+                    return IVec2::ZERO
+                }
+            },
+            Cell::STONE => IVec2::ZERO,
         }
     }
 
@@ -185,20 +139,11 @@ impl Simulation {
         let cell_center = read_world.get_cell(global_coord);
         let cell_above  = read_world.get_cell(global_coord + ivec2(0, -1));
 
-        pull_vectors[1] = match cell_center {
-            Cell::AIR => {
-                if cell_above == Cell::SAND {
-                    true
-                }
-                else {
-                    false
-                }
-            }
-            Cell::SAND => false,
+        return [match cell_center {
+            Cell::AIR   => true,
+            Cell::SAND  => false,
             Cell::STONE => false,
-        };
-
-        return pull_vectors;
+        }; Self::NEIGHBOR_COUNT];
     }
 
 
@@ -251,12 +196,12 @@ impl Simulation {
         let read_world = WorldView::new(read_buffer, self.world_size, Cell::STONE);
 
         self.push_buffer
-            .chunks_mut(Self::CELLS_PER_CHUNK)
+            .par_chunks_mut(Self::CELLS_PER_CHUNK)
             .enumerate()
             .for_each(|(chunk_index, chunk)| Self::update_push_vectors(chunk_index, chunk, &read_world));
         
         self.pull_buffer
-            .chunks_mut(Self::CELLS_PER_CHUNK)
+            .par_chunks_mut(Self::CELLS_PER_CHUNK)
             .enumerate()
             .for_each(|(chunk_index, chunk)| Self::update_pull_fields(chunk_index, chunk, &read_world));
         
@@ -264,7 +209,7 @@ impl Simulation {
         let read_world_pull = WorldView::new(&self.pull_buffer, self.world_size, [false; Self::NEIGHBOR_COUNT]);
 
         write_buffer
-            .chunks_mut(Self::CELLS_PER_CHUNK)
+            .par_chunks_mut(Self::CELLS_PER_CHUNK)
             .enumerate()
             .map(|(chunk_index, chunk)| ChunkViewMut::new(chunk_index, chunk))
             .for_each(|mut write_chunk| Self::resolve_movements(&mut write_chunk, &read_world, &read_world_push, &read_world_pull));

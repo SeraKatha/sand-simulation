@@ -21,21 +21,21 @@ fn cell_to_color(cell : Cell) -> [u8; 4] {
 
 #[macroquad::main("SandFalls")]
 async fn main() {
-    let simulation = Simulation::new(ivec2(64, 64));
+    let simulation = Simulation::new(ivec2(512, 512));
     let mut i = 0;
     
     if let Ok(mut simulation) = simulation {
         let num_of_chunks_xy = simulation.num_of_chunks_xy();
         let num_of_chunks_total = simulation.num_of_chunks();
-        set_camera(&Camera2D {
-            zoom: 0.01 * vec2(1., screen_width() / screen_height()),
-            ..Default::default()
-        });
+        // set_camera(&Camera2D {
+        //     zoom: 0.005 * vec2(1., screen_width() / screen_height()),
+        //     ..Default::default()
+        // });
         set_default_filter_mode(FilterMode::Nearest);
         let mut textures : Vec<Texture2D> = std::iter::repeat_with(init_chunk_texture).take(num_of_chunks_total).collect();
         loop {
+            simulation.tick();
             if (i % 10) == 0 {
-                simulation.tick();
             }
             i+=1;
             println!("Tick");
