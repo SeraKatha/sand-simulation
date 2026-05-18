@@ -19,6 +19,7 @@ pub enum Error {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u8)]
 pub enum Cell {
     AIR, SAND, STONE,
 }
