@@ -3,30 +3,31 @@ use crate::Cell;
 use crate::Simulation;
 use crate::Grid;
 
-pub struct WorldView<'a> {
-    cells : &'a[Cell],
+pub struct WorldView<'a, T : Copy> {
+    cells : &'a[T],
     world_size : IVec2,
+    border : T,
 }
 
 
-impl<'a> WorldView<'a> {
-    pub fn new(cells : &'a[Cell], world_size : IVec2) -> Self {
-        Self { cells, world_size }
+impl<'a, T : Copy> WorldView<'a, T> {
+    pub fn new(cells : &'a[T], world_size : IVec2, border : T) -> Self {
+        Self { cells, world_size, border }
     }
 
 
-    pub fn get_cell(&self, global_coord : IVec2) -> Cell {
+    pub fn get_cell(&self, global_coord : IVec2) -> T {
         if global_coord.x < 0 {
-            return Cell::STONE;
+            return self.border;
         };
         if global_coord.y < 0 {
-            return Cell::STONE;
+            return self.border;
         };
         if global_coord.x >= self.world_size.x as i32 {
-            return Cell::STONE;
+            return self.border;
         }
         if global_coord.y >= self.world_size.y as i32 {
-            return Cell::STONE;
+            return self.border;
         }
         let local_coord = global_coord % (Simulation::CHUNK_SIZE as i32); 
         let local_index = Grid::map2Dto1D(local_coord, IVec2::ONE * (Simulation::CHUNK_SIZE as i32));
