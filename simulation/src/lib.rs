@@ -115,16 +115,16 @@ impl Simulation {
             Cell::AIR => IVec2::ZERO,
             Cell::SAND => {
                 if cell_below == Cell::AIR {
-                    return ivec2(0, 1)
+                    ivec2(0, 1)
                 }
-                if cell_below_a == Cell::AIR {
-                    return offset_a
+                else if cell_below_a == Cell::AIR {
+                    offset_a
                 }
-                if cell_below_b == Cell::AIR {
-                    return offset_b
+                else if cell_below_b == Cell::AIR {
+                    offset_b
                 }
                 else {
-                    return IVec2::ZERO
+                    IVec2::ZERO
                 }
             },
             Cell::STONE => IVec2::ZERO,
@@ -164,12 +164,34 @@ impl Simulation {
         }
     }
 
+    
+    fn pick_pulls(
+        read_world_push : &WorldView<IVec2>,
+        write_chunk_pull : &mut ChunkViewMut<[bool; Self::NEIGHBOR_COUNT]>) {
+        
+        let chunk_coord = Grid::map1Dto2D(write_chunk_pull.index(), read_world_push.size() / (Self::CHUNK_SIZE as i32));
+        for local_index in 0..Self::CELLS_PER_CHUNK {
+            let local_coord = Grid::map1Dto2D(local_index, IVec2::ONE * (Self::CHUNK_SIZE as i32));
+            let global_coord = chunk_coord * (Self::CHUNK_SIZE as i32) + local_coord;
+            for i in 0..Self::NEIGHBOR_COUNT {
+                let offset = Self::NEIGHBOR_IDX2OFFSET[i];
+                let push = read_world_push.get_cell(global_coord + offset);
+                if push == -offset {
+                    let mut new_pulls = [false; 8];
+                    new_pulls[i] = true;
+                    write_chunk_pull.set_cell(new_pulls, local_coord);
+                    break;
+                } 
+            }
+        }
+    }
+
 
     fn resolve_movements(
-        write_chunk : &mut ChunkViewMut,
+        write_chunk : &mut ChunkViewMut<Cell>,
         read_world : &WorldView<Cell>,
         read_world_push : &WorldView<IVec2>,
-        read_world_pull : &WorldView<[bool; 8]>) {
+        read_world_pull : &WorldView<[bool; Self::NEIGHBOR_COUNT]>) {
         
         let chunk_coord = Grid::map1Dto2D(write_chunk.index(), read_world.size() / (Self::CHUNK_SIZE as i32));
         for local_index in 0..Self::CELLS_PER_CHUNK {
@@ -181,7 +203,6 @@ impl Simulation {
             let target_pull = read_world_pull.get_cell(global_coord + center_push);
             for n in 0..Self::NEIGHBOR_COUNT {
                 let offset = Self::NEIGHBOR_IDX2OFFSET[n];
-                let neighbor_push = read_world_push.get_cell(global_coord + offset);
                 if target_pull[n] && center_push == -offset {
                     cell = Cell::AIR;
                 }
@@ -194,14 +215,24 @@ impl Simulation {
                 }
             }
    
-            write_chunk.write_cell(cell, local_coord);
+            write_chunk.set_cell(cell, local_coord);
         }
     }
 
 
     pub fn tick(&mut self) {
+        let mut array = [0i32; 3];
+
         let (read_buffer, write_buffer) = self.cells.pick_read_and_write_buffer();
         let read_world = WorldView::new(read_buffer, self.world_size, Cell::STONE);
+        for x in 0..self.world_size.x {
+            for y in 0..self.world_size.y {
+                array[read_world.get_cell(ivec2(x, y)) as usize] += 1;
+            }
+        }
+
+        println!("{array:?}");
+
 
         self.push_buffer
             .par_chunks_mut(Self::CELLS_PER_CHUNK)
@@ -214,8 +245,15 @@ impl Simulation {
             .for_each(|(chunk_index, chunk)| Self::update_pull_fields(chunk_index, chunk, &read_world));
         
         let read_world_push = WorldView::new(&self.push_buffer, self.world_size, IVec2::ZERO);
+        
+        self.pull_buffer
+            .par_chunks_mut(Self::CELLS_PER_CHUNK)
+            .enumerate()
+            .map(|(chunk_index, chunk)| ChunkViewMut::new(chunk_index, chunk))
+            .for_each(|mut write_chunk_pull| Self::pick_pulls(&read_world_push, &mut write_chunk_pull));
+    
         let read_world_pull = WorldView::new(&self.pull_buffer, self.world_size, [false; Self::NEIGHBOR_COUNT]);
-
+        
         write_buffer
             .par_chunks_mut(Self::CELLS_PER_CHUNK)
             .enumerate()

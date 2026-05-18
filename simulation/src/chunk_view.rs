@@ -1,17 +1,23 @@
 use macroquad::prelude::*;
-use crate::{Cell, Grid, Simulation};
+use crate::{Grid, Simulation};
 
-pub struct ChunkViewMut<'a> {
-    cells : &'a mut [Cell],
+pub struct ChunkViewMut<'a, T : Copy> {
+    cells : &'a mut [T],
     chunk_index : usize,
 }
 
-impl<'a> ChunkViewMut<'a> {
-    pub fn new(chunk_index : usize, cells : &'a mut [Cell]) -> Self {
+impl<'a, T : Copy> ChunkViewMut<'a, T> {
+    pub fn new(chunk_index : usize, cells : &'a mut [T]) -> Self {
         return Self { chunk_index, cells }
     }
 
-    pub fn write_cell(&mut self, cell : Cell, local_coord : IVec2) {
+    pub fn get_cell(&self, local_coord : IVec2) -> T {
+        let local_index = Grid::map2Dto1D(local_coord, IVec2::ONE * (Simulation::CHUNK_SIZE as i32));
+        return self.cells[local_index];
+    }
+
+
+    pub fn set_cell(&mut self, cell : T, local_coord : IVec2) {
         let local_index = Grid::map2Dto1D(local_coord, IVec2::ONE * (Simulation::CHUNK_SIZE as i32));
         self.cells[local_index] = cell;
     }

@@ -38,7 +38,6 @@ async fn main() {
             if (i % 10) == 0 {
             }
             i+=1;
-            println!("Tick");
             clear_background(BLACK);
             for chunk_index in 0..num_of_chunks_total {
                 let chunk_coord = Grid::map1Dto2D(chunk_index, num_of_chunks_xy);
