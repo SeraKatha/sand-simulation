@@ -16,6 +16,7 @@ fn cell_to_color(cell : Cell) -> [u8; 4] {
         Cell::AIR   => [  0,   0,   0, 255],
         Cell::SAND  => [242, 203, 151, 255],
         Cell::STONE => [ 93,  93,  93, 255],
+        Cell::WATER => [  0,  96, 255, 255],
     }
 }
 

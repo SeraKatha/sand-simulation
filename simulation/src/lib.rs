@@ -1,3 +1,5 @@
+use std::mem;
+
 use macroquad::math::{IVec2, UVec2};
 use macroquad::prelude::*;
 
@@ -22,7 +24,7 @@ pub enum Error {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(u8)]
 pub enum Cell {
-    AIR, SAND, STONE,
+    AIR, SAND, STONE, WATER,
 }
 
 
@@ -69,10 +71,11 @@ impl Simulation {
         }
         let num_of_cells : usize = (world_size.x * world_size.y) as usize;
         let cells = Vec::from_iter(
-            std::iter::repeat_with(|| match ::rand::random::<u32>() % 3 {
+            std::iter::repeat_with(|| match ::rand::random::<u32>() % 4 {
                 0 => Cell::AIR,
-                1 => Cell::SAND,
+                1 => Cell::WATER,
                 2 => Cell::STONE,
+                3 => Cell::SAND,
                 _ => Cell::AIR,
             })
             .take(num_of_cells));
@@ -101,17 +104,21 @@ impl Simulation {
 
 
     fn calc_push_vector(read_world : &WorldView<Cell>, global_coord : IVec2) -> IVec2 {
-        let cell_center  = read_world.get_cell(global_coord);
-        let cell_below   = read_world.get_cell(global_coord + ivec2( 0, 1));
+        let cell_center = read_world.get_cell(global_coord);
+        let cell_above  = read_world.get_cell(global_coord + ivec2(0, -1));
+        let cell_below  = read_world.get_cell(global_coord + ivec2( 0, 1));
         let (offset_a, offset_b) = if ::rand::random_bool(0.5) {
-            (ivec2(-1, 1), ivec2(1, 1))
+            (ivec2(-1, 0), ivec2(1, 0))
         }
         else {
-            (ivec2(1, 1), ivec2(-1, 1))
+            (ivec2(1, 0), ivec2(-1, 0))
         };
-        let cell_below_a = read_world.get_cell(global_coord + offset_a);
-        let cell_below_b = read_world.get_cell(global_coord + offset_b);
-            
+        let cell_below_a = read_world.get_cell(global_coord + ivec2(0,1) + offset_a);
+        let cell_below_b = read_world.get_cell(global_coord + ivec2(0,1) + offset_b);
+        let cell_above_a = read_world.get_cell(global_coord - ivec2(0,1) + offset_a);
+        let cell_above_b = read_world.get_cell(global_coord - ivec2(0,1) + offset_b);
+        let cell_side_a = read_world.get_cell(global_coord + offset_a);
+        let cell_side_b = read_world.get_cell(global_coord + offset_b);
         return match cell_center {
             Cell::AIR => IVec2::ZERO,
             Cell::SAND => {
@@ -119,16 +126,48 @@ impl Simulation {
                     ivec2(0, 1)
                 }
                 else if cell_below_a == Cell::AIR {
-                    offset_a
+                    ivec2(0, 1) + offset_a
                 }
                 else if cell_below_b == Cell::AIR {
-                    offset_b
+                    ivec2(0, 1) + offset_b
+                }
+                else if cell_below == Cell::WATER {
+                    ivec2(0, 1)
                 }
                 else {
                     IVec2::ZERO
                 }
             },
             Cell::STONE => IVec2::ZERO,
+            Cell::WATER => {
+                if cell_below == Cell::AIR {
+                    ivec2(0, 1)
+                }
+                else if cell_below_a == Cell::AIR {
+                    ivec2(0, 1) + offset_a
+                }
+                else if cell_below_b == Cell::AIR {
+                    ivec2(0, 1) + offset_b
+                }
+                else if cell_side_a == Cell::AIR {
+                    offset_a
+                }
+                else if cell_side_b == Cell::AIR {
+                    offset_b
+                }
+                else if cell_above == Cell::SAND {
+                    ivec2(0, -1)
+                }
+                else if cell_above_a == Cell::SAND {
+                    ivec2(0, -1) + offset_a
+                }
+                else if cell_above_b == Cell::SAND {
+                    ivec2(0, -1) + offset_b
+                }
+                else {
+                    IVec2::ZERO
+                }
+            }
         }
     }
 
@@ -204,7 +243,7 @@ impl Simulation {
 
 
     pub fn tick(&mut self) {
-        let mut array = [0i32; 3];
+        let mut array = [0i32; 4];
 
         let (read_buffer, write_buffer) = self.cells.pick_read_and_write_buffer();
         let read_world = WorldView::new(read_buffer, self.world_size, Cell::STONE);
