@@ -1,9 +1,17 @@
+use std::collections::btree_map::Range;
+
 use simulation::{Cell, Grid, Simulation};
 use macroquad::prelude::*;
+use macroquad::ui::widgets::{Slider};
+use macroquad::ui::{
+    hash, root_ui,
+    widgets::{self, Group},
+    Drag, Ui,
+};
+
 mod view;
 use view::View;
 mod tool;
-use tool::{Tool, Dropper};
 
 fn init_chunk_texture() -> Texture2D {
     let bytes =  [128u8; Simulation::CELLS_PER_CHUNK * 4];
@@ -29,8 +37,9 @@ pub struct Application {
     simulation : Simulation,
     view : View,
     textures : Vec<Texture2D>,
-    current_tool : tool::Dropper,
+    dropper : tool::Dropper,
     eraser : tool::Dropper,
+    new_world_size : IVec2,
 }
 
 
@@ -40,10 +49,11 @@ impl Application {
         if let Ok(mut simulation) = Simulation::new(ivec2(0, 0)) {
             let view = View::new(vec2(0.0, 0.0));
             let textures : Vec<Texture2D> = Vec::new();
-            let current_tool = tool::Dropper::new(Cell::SAND, 3);
+            let dropper = tool::Dropper::new(Cell::SAND, 3);
             let eraser = tool::Dropper::new(Cell::AIR, 3);
+            let new_world_size = Self::DEFAULT_WORLD_SIZE;
             let mut application = Application {
-                simulation, view, textures, current_tool, eraser,
+                simulation, view, textures, dropper, eraser, new_world_size
             };
             application.generate_simulation(Self::DEFAULT_WORLD_SIZE);
             return application;
@@ -74,11 +84,13 @@ impl Application {
         self.simulation.tick();
         let mouse_position = macroquad::input::mouse_position(); 
         let global_coord = camera.screen_to_world(vec2(mouse_position.0, mouse_position.1));
-        if macroquad::input::is_mouse_button_down(MouseButton::Left) {
-            self.current_tool.apply(&mut self.simulation, ivec2(global_coord.x as i32, global_coord.y as i32));
-        }
-        if macroquad::input::is_mouse_button_down(MouseButton::Right) {
-            self.eraser.apply(&mut self.simulation, ivec2(global_coord.x as i32, global_coord.y as i32));
+        if !root_ui().is_mouse_over(mouse_position.into()) {
+            if macroquad::input::is_mouse_button_down(MouseButton::Left) {
+                self.dropper.apply(&mut self.simulation, ivec2(global_coord.x as i32, global_coord.y as i32));
+            }
+            if macroquad::input::is_mouse_button_down(MouseButton::Right) {
+                self.eraser.apply(&mut self.simulation, ivec2(global_coord.x as i32, global_coord.y as i32));
+            }
         }
         self.simulation.swap_buffers();
         self.view.update();
@@ -117,5 +129,63 @@ impl Application {
                 WHITE
             );
         }
+    }
+
+    fn ui_tool(&mut self) {
+        widgets::Window::new(hash!(), vec2(0.0, 0.0), vec2(200.0, 150.0))
+            .label("Tool")
+            .movable(false)
+            .ui(&mut root_ui(), |ui| {
+                if ui.button(None, "Air") {
+                    self.dropper.set_material(Cell::AIR);
+                }
+                if ui.button(None, "Sand") {
+                    self.dropper.set_material(Cell::SAND);
+                }
+                if ui.button(None, "Water") {
+                    self.dropper.set_material(Cell::WATER);
+                }
+                if ui.button(None, "Stone") {
+                    self.dropper.set_material(Cell::STONE);
+                }
+                let mut tool_size = self.dropper.get_size() as f32;
+                ui.slider(0, "Tool Size", 1.0..10.0, &mut tool_size);
+                self.dropper.set_size(tool_size.round() as i32);
+                self.eraser.set_size(tool_size.round() as i32);
+            }
+        );
+    }
+
+    fn ui_world(&mut self) {
+        widgets::Window::new(hash!(), vec2(0.0, 150.0), vec2(200.0, 150.0))
+            .label("World")
+            .movable(false)
+            .ui(&mut root_ui(), |ui| {
+                let mut world_size_x : f32 = self.new_world_size.x as f32;
+                let mut world_size_y : f32 = self.new_world_size.y as f32;
+
+                const CHUNK_SIZE_F : f32 = Simulation::CHUNK_SIZE as f32;
+                const WORLD_SIZE_MIN : f32 = Simulation::CHUNK_SIZE as f32;
+                const WORLD_SIZE_MAX : f32 = 20.0 * Simulation::CHUNK_SIZE as f32;
+
+                ui.slider(1, "World Size X", WORLD_SIZE_MIN..WORLD_SIZE_MAX, &mut world_size_x);
+                ui.slider(2, "World Size Y", WORLD_SIZE_MIN..WORLD_SIZE_MAX, &mut world_size_y);
+                world_size_x = (world_size_x / CHUNK_SIZE_F).round() * CHUNK_SIZE_F;
+                world_size_y = (world_size_y / CHUNK_SIZE_F).round() * CHUNK_SIZE_F;
+                self.new_world_size = ivec2(world_size_x as i32, world_size_y as i32);
+
+                if ui.button(None, "Noise World") {
+                    self.generate_simulation(self.new_world_size);
+                }
+                if ui.button(None, "Empty World") {
+                    self.generate_simulation(self.new_world_size);
+                }
+            }
+        );
+    }
+
+    pub fn ui(&mut self) {
+        self.ui_tool();
+        self.ui_world();
     }
 }

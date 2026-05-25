@@ -27,4 +27,16 @@ impl Dropper {
             }
         }
     }
+
+    pub fn set_material(&mut self, cell : Cell) {
+        self.cell = cell
+    }
+
+    pub fn get_size(&mut self) -> i32 {
+        return self.size;
+    }
+
+    pub fn set_size(&mut self, size : i32) {
+        self.size = size;
+    }
 }

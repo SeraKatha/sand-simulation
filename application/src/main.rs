@@ -17,6 +17,7 @@ async fn main() {
     loop {
         application.update();
         application.render();
+        application.ui();
             
         next_frame().await
     }
