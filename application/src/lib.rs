@@ -30,6 +30,7 @@ pub struct Application {
     view : View,
     textures : Vec<Texture2D>,
     current_tool : tool::Dropper,
+    eraser : tool::Dropper,
 }
 
 
@@ -40,8 +41,9 @@ impl Application {
             let view = View::new(vec2(0.0, 0.0));
             let textures : Vec<Texture2D> = Vec::new();
             let current_tool = tool::Dropper::new(Cell::SAND, 3);
+            let eraser = tool::Dropper::new(Cell::AIR, 3);
             let mut application = Application {
-                simulation, view, textures, current_tool,
+                simulation, view, textures, current_tool, eraser,
             };
             application.generate_simulation(Self::DEFAULT_WORLD_SIZE);
             return application;
@@ -70,10 +72,13 @@ impl Application {
         let camera = self.view.into_camera_2d(); 
         set_camera(&camera);
         self.simulation.tick();
+        let mouse_position = macroquad::input::mouse_position(); 
+        let global_coord = camera.screen_to_world(vec2(mouse_position.0, mouse_position.1));
         if macroquad::input::is_mouse_button_down(MouseButton::Left) {
-            let mouse_position = macroquad::input::mouse_position(); 
-            let global_coord = camera.screen_to_world(vec2(mouse_position.0, mouse_position.1));
             self.current_tool.apply(&mut self.simulation, ivec2(global_coord.x as i32, global_coord.y as i32));
+        }
+        if macroquad::input::is_mouse_button_down(MouseButton::Right) {
+            self.eraser.apply(&mut self.simulation, ivec2(global_coord.x as i32, global_coord.y as i32));
         }
         self.simulation.swap_buffers();
         self.view.update();
