@@ -1,4 +1,4 @@
-use simulation::{Cell, Grid, Simulation};
+use simulation::{Cell, Simulation};
 use macroquad::prelude::*;
 
 

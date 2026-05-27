@@ -1,12 +1,8 @@
-use std::collections::btree_map::Range;
-
 use simulation::{Cell, Grid, Simulation};
 use macroquad::prelude::*;
-use macroquad::ui::widgets::{Slider};
 use macroquad::ui::{
     hash, root_ui,
-    widgets::{self, Group},
-    Drag, Ui,
+    widgets,
 };
 
 mod view;
@@ -46,7 +42,7 @@ pub struct Application {
 impl Application {
     const DEFAULT_WORLD_SIZE : IVec2 = ivec2(128, 128);
     pub fn new() -> Application {
-        if let Ok(mut simulation) = Simulation::new(ivec2(0, 0)) {
+        if let Ok(simulation) = Simulation::new(ivec2(0, 0)) {
             let view = View::new(vec2(0.0, 0.0));
             let textures : Vec<Texture2D> = Vec::new();
             let dropper = tool::Dropper::new(Cell::SAND, 3);
@@ -65,9 +61,8 @@ impl Application {
     
     pub fn generate_simulation(&mut self, world_size : IVec2) {
         let simulation = Simulation::new(world_size);
-        if let Ok(mut simulation) = simulation {
+        if let Ok(simulation) = simulation {
             self.simulation = simulation;
-            let num_of_chunks_xy = self.simulation.num_of_chunks_xy();
             let num_of_chunks_total = self.simulation.num_of_chunks();
             self.textures = std::iter::repeat_with(init_chunk_texture).take(num_of_chunks_total).collect();
             self.view = View::new(vec2(world_size.x as f32, world_size.y as f32));
@@ -103,7 +98,7 @@ impl Application {
         let num_of_chunks_xy = self.simulation.num_of_chunks_xy();
         let num_of_chunks_total = self.simulation.num_of_chunks();
         for chunk_index in 0..num_of_chunks_total {
-            let chunk_coord = Grid::map1Dto2D(chunk_index, num_of_chunks_xy);
+            let chunk_coord = Grid::map_1d_to_2d(chunk_index, num_of_chunks_xy);
             let chunk = self.simulation.get_chunk(chunk_coord);
             let texture = &mut self.textures[chunk_index]; 
             

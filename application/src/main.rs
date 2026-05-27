@@ -1,13 +1,5 @@
-use simulation::{Cell, Grid, Simulation};
 use macroquad::prelude::*;
 use application::Application;
-
-
-
-
-
-
-
 
 #[macroquad::main("SandFalls")]
 async fn main() {
