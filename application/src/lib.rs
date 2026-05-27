@@ -41,14 +41,14 @@ pub struct Application {
 }
 
 impl Application {
-    const DEFAULT_WORLD_SIZE: IVec2 = ivec2(128, 128);
+    const WORLD_SIZE_DEFAULT: IVec2 = ivec2(128, 128);
     pub fn new() -> Application {
         if let Ok(simulation) = Simulation::new(ivec2(0, 0)) {
             let view = View::new(vec2(0.0, 0.0));
             let textures: Vec<Texture2D> = Vec::new();
             let dropper = tool::Dropper::new(Cell::SAND, 3);
             let eraser = tool::Dropper::new(Cell::AIR, 3);
-            let new_world_size = Self::DEFAULT_WORLD_SIZE;
+            let new_world_size = Self::WORLD_SIZE_DEFAULT;
             let mut application = Application {
                 simulation,
                 view,
@@ -60,7 +60,7 @@ impl Application {
                 last_render_duration: Duration::ZERO,
                 pulse: Pulse::new(60.0),
             };
-            application.generate_simulation(Self::DEFAULT_WORLD_SIZE);
+            application.generate_simulation(Self::WORLD_SIZE_DEFAULT);
             return application;
         } else {
             panic!("AAAHHH!!!")
@@ -200,8 +200,14 @@ impl Application {
                 world_size_x = (world_size_x / CHUNK_SIZE_F).round() * CHUNK_SIZE_F;
                 world_size_y = (world_size_y / CHUNK_SIZE_F).round() * CHUNK_SIZE_F;
                 self.new_world_size = ivec2(world_size_x as i32, world_size_y as i32);
-                if ui.button(None, "Default World Size") {
-                    self.new_world_size = Self::DEFAULT_WORLD_SIZE;
+                if ui.button(None, "World Size: Small") {
+                    self.new_world_size = ivec2(1,1) * WORLD_SIZE_MIN as i32;
+                }
+                if ui.button(None, "World Size: Default") {
+                    self.new_world_size = Self::WORLD_SIZE_DEFAULT;
+                }
+                if ui.button(None, "World Size: Large") {
+                    self.new_world_size = ivec2(1,1) * WORLD_SIZE_MAX as i32;
                 }
                 if ui.button(None, "New World") {
                     self.generate_simulation(self.new_world_size);
