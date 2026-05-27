@@ -249,7 +249,6 @@ impl Simulation {
 
         // println!("{array:?}");
 
-
         self.push_buffer
             .par_chunks_mut(Self::CELLS_PER_CHUNK)
             .enumerate()
@@ -270,6 +269,11 @@ impl Simulation {
             .enumerate()
             .map(|(chunk_index, chunk)| ChunkViewMut::new(chunk_index, chunk))
             .for_each(|mut write_chunk| Self::resolve_movements(&mut write_chunk, &read_world, &read_world_push, &read_world_pull));
+    }
+
+    pub fn pass(&mut self) {
+        let (read_buffer, write_buffer) = self.cells.pick_read_and_write_buffer();
+        write_buffer.copy_from_slice(&read_buffer);
     }
 
 

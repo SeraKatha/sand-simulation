@@ -1,3 +1,4 @@
+use std::hash;
 use std::time::{Duration, Instant};
 
 use simulation::{Cell, Grid, Simulation};
@@ -40,6 +41,8 @@ pub struct Application {
     new_world_size : IVec2,
     last_tick_duration : Duration,
     last_render_duration : Duration,
+    speed : f32,
+    time_since_last_tick : f32,
 }
 
 
@@ -56,6 +59,8 @@ impl Application {
                 simulation, view, textures, dropper, eraser, new_world_size,
                 last_tick_duration : Duration::ZERO,
                 last_render_duration : Duration::ZERO,
+                speed : 1.0,
+                time_since_last_tick : 0.0,
             };
             application.generate_simulation(Self::DEFAULT_WORLD_SIZE);
             return application;
@@ -80,13 +85,22 @@ impl Application {
 
 
     pub fn update(&mut self) {
-        let camera = self.view.into_camera_2d(); 
+        let camera = self.view.into_camera_2d();
         set_camera(&camera);
-        let time_tick_pre = Instant::now();
-        self.simulation.tick();
-        let time_tick_post = Instant::now();
-        self.last_tick_duration = time_tick_post.duration_since(time_tick_pre);
-        println!("{}", self.last_tick_duration.as_micros());
+        self.time_since_last_tick += (get_frame_time() * 1.05) * self.speed;
+        if self.time_since_last_tick >= 2.0 / 60.0 {
+            self.time_since_last_tick -= 1.0 / 60.0;
+        }
+        if self.time_since_last_tick >= 1.0 / 60.0 {
+            let time_tick_pre = Instant::now();
+            self.simulation.tick();
+            let time_tick_post = Instant::now();
+            self.last_tick_duration = time_tick_post.duration_since(time_tick_pre);
+            self.time_since_last_tick -= 1.0 / 60.0;
+        }
+        else {
+            self.simulation.pass();
+        }
         let mouse_position = macroquad::input::mouse_position(); 
         let global_coord = camera.screen_to_world(vec2(mouse_position.0, mouse_position.1));
         if !root_ui().is_mouse_over(mouse_position.into()) {
@@ -193,13 +207,14 @@ impl Application {
 
     fn ui_performance(&mut self) {
         widgets::Window::new(hash!(), vec2(0.0, 300.0), vec2(200.0, 150.0))
-            .label("Performance")
+            .label("Performance and Speed")
             .movable(false)
             .ui(&mut root_ui(), |ui| {
                 ui.label(None, &format!("World Size: {}x{}", self.simulation.size().x, self.simulation.size().y));
                 ui.label(None, &format!("FPS:        {:.2}", 1.0 / get_frame_time()));
                 ui.label(None, &format!("Sim tick:   {} ms", (self.last_tick_duration.as_micros() as f32) / 1000.0));
                 ui.label(None, &format!("Render:     {} ms", (self.last_render_duration.as_micros() as f32) / 1000.0));
+                ui.slider(hash!(), "Speed", 0.0..1.0, &mut self.speed);
             }
         );
     }
