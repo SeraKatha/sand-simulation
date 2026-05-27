@@ -174,7 +174,7 @@ impl Application {
 
                 const CHUNK_SIZE_F : f32 = Simulation::CHUNK_SIZE as f32;
                 const WORLD_SIZE_MIN : f32 = Simulation::CHUNK_SIZE as f32;
-                const WORLD_SIZE_MAX : f32 = 20.0 * Simulation::CHUNK_SIZE as f32;
+                const WORLD_SIZE_MAX : f32 = 32.0 * Simulation::CHUNK_SIZE as f32;
 
                 ui.slider(1, "World Size X", WORLD_SIZE_MIN..WORLD_SIZE_MAX, &mut world_size_x);
                 ui.slider(2, "World Size Y", WORLD_SIZE_MIN..WORLD_SIZE_MAX, &mut world_size_y);
