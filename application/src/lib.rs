@@ -9,6 +9,8 @@ use view::View;
 mod pulse;
 mod tool;
 use pulse::Pulse;
+mod performance_monitor;
+use performance_monitor::PerformanceMonitor;
 
 fn init_chunk_texture() -> Texture2D {
     let bytes = [128u8; Simulation::CELLS_PER_CHUNK * 4];
@@ -35,9 +37,8 @@ pub struct Application {
     dropper: tool::Dropper,
     eraser: tool::Dropper,
     new_world_size: IVec2,
-    last_tick_duration: Duration,
-    last_render_duration: Duration,
     pulse: Pulse,
+    performance_monitor : PerformanceMonitor,
 }
 
 impl Application {
@@ -56,8 +57,7 @@ impl Application {
                 dropper,
                 eraser,
                 new_world_size,
-                last_tick_duration: Duration::ZERO,
-                last_render_duration: Duration::ZERO,
+                performance_monitor : PerformanceMonitor::new(),
                 pulse: Pulse::new(60.0),
             };
             application.generate_simulation(Self::WORLD_SIZE_DEFAULT);
@@ -85,10 +85,9 @@ impl Application {
         let camera = self.view.into_camera_2d();
         set_camera(&camera);
         if self.pulse.tick(get_frame_time()) {
-            let time_tick_pre = Instant::now();
-            self.simulation.tick();
-            let time_tick_post = Instant::now();
-            self.last_tick_duration = time_tick_post.duration_since(time_tick_pre);
+            self.performance_monitor.meassure_simulation(|| {
+                self.simulation.tick();
+            });
         } else {
             self.simulation.pass();
         }
@@ -112,41 +111,41 @@ impl Application {
         self.view.update();
         clear_background(DARKGRAY);
         set_camera(&camera);
+        self.performance_monitor.meassure_frame();
     }
 
     pub fn render(&mut self) {
-        let time_render_pre = Instant::now();
-        let num_of_chunks_xy = self.simulation.num_of_chunks_xy();
-        let num_of_chunks_total = self.simulation.num_of_chunks();
-        for chunk_index in 0..num_of_chunks_total {
-            let chunk_coord = Grid::map_1d_to_2d(chunk_index, num_of_chunks_xy);
-            let chunk = self.simulation.get_chunk(chunk_coord);
-            let texture = &mut self.textures[chunk_index];
+        self.performance_monitor.meassure_rendering(||{
+            let num_of_chunks_xy = self.simulation.num_of_chunks_xy();
+            let num_of_chunks_total = self.simulation.num_of_chunks();
+            for chunk_index in 0..num_of_chunks_total {
+                let chunk_coord = Grid::map_1d_to_2d(chunk_index, num_of_chunks_xy);
+                let chunk = self.simulation.get_chunk(chunk_coord);
+                let texture = &mut self.textures[chunk_index];
 
-            let mut bytes = [0u8; 4 * Simulation::CELLS_PER_CHUNK];
-            for local_index in 0..Simulation::CELLS_PER_CHUNK {
-                let [r, g, b, a] = cell_to_color(chunk[local_index]);
-                bytes[4 * local_index + 0] = r;
-                bytes[4 * local_index + 1] = g;
-                bytes[4 * local_index + 2] = b;
-                bytes[4 * local_index + 3] = a;
+                let mut bytes = [0u8; 4 * Simulation::CELLS_PER_CHUNK];
+                for local_index in 0..Simulation::CELLS_PER_CHUNK {
+                    let [r, g, b, a] = cell_to_color(chunk[local_index]);
+                    bytes[4 * local_index + 0] = r;
+                    bytes[4 * local_index + 1] = g;
+                    bytes[4 * local_index + 2] = b;
+                    bytes[4 * local_index + 3] = a;
+                }
+
+                texture.update_from_bytes(
+                    Simulation::CHUNK_SIZE as u32,
+                    Simulation::CHUNK_SIZE as u32,
+                    &bytes,
+                );
+
+                draw_texture(
+                    texture,
+                    (chunk_coord.x as f32) * (Simulation::CHUNK_SIZE as f32),
+                    (chunk_coord.y as f32) * (Simulation::CHUNK_SIZE as f32),
+                    WHITE,
+                );
             }
-
-            texture.update_from_bytes(
-                Simulation::CHUNK_SIZE as u32,
-                Simulation::CHUNK_SIZE as u32,
-                &bytes,
-            );
-
-            draw_texture(
-                texture,
-                (chunk_coord.x as f32) * (Simulation::CHUNK_SIZE as f32),
-                (chunk_coord.y as f32) * (Simulation::CHUNK_SIZE as f32),
-                WHITE,
-            );
-        }
-        let time_render_post = Instant::now();
-        self.last_render_duration = time_render_post.duration_since(time_render_pre);
+        });
     }
 
     fn ui_tool(&mut self) {
@@ -228,19 +227,19 @@ impl Application {
                         self.simulation.size().y
                     ),
                 );
-                ui.label(None, &format!("FPS:        {:.2}", 1.0 / get_frame_time()));
+                ui.label(None, &format!("FPS:        {:.2}", self.performance_monitor.get_fps()));
                 ui.label(
                     None,
                     &format!(
-                        "Sim tick:   {} ms",
-                        (self.last_tick_duration.as_micros() as f32) / 1000.0
+                        "Simumation: {} ms",
+                        (self.performance_monitor.get_simulation_duration().as_micros() as f32) / 1000.0
                     ),
                 );
                 ui.label(
                     None,
                     &format!(
                         "Render:     {} ms",
-                        (self.last_render_duration.as_micros() as f32) / 1000.0
+                        (self.performance_monitor.get_rendering_duration().as_micros() as f32) / 1000.0
                     ),
                 );
                 ui.slider(
