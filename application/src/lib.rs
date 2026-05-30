@@ -1,44 +1,27 @@
-use std::time::{Duration, Instant};
+mod performance_monitor;
+mod pulse;
+mod renderer;
+mod tool;
+mod view;
 
 use macroquad::prelude::*;
 use macroquad::ui::{hash, root_ui, widgets};
-use simulation::{Cell, Grid, Simulation};
+use simulation::{Cell, Simulation};
 
-mod view;
-use view::View;
-mod pulse;
-mod tool;
-use pulse::Pulse;
-mod performance_monitor;
 use performance_monitor::PerformanceMonitor;
-
-fn init_chunk_texture() -> Texture2D {
-    let bytes = [128u8; Simulation::CELLS_PER_CHUNK * 4];
-    Texture2D::from_rgba8(
-        Simulation::CHUNK_SIZE as u16,
-        Simulation::CHUNK_SIZE as u16,
-        &bytes,
-    )
-}
-
-fn cell_to_color(cell: Cell) -> [u8; 4] {
-    match cell {
-        Cell::AIR => [0, 0, 0, 255],
-        Cell::SAND => [242, 203, 151, 255],
-        Cell::STONE => [93, 93, 93, 255],
-        Cell::WATER => [0, 96, 255, 255],
-    }
-}
+use pulse::Pulse;
+use renderer::Renderer;
+use view::View;
 
 pub struct Application {
     simulation: Simulation,
     view: View,
-    textures: Vec<Texture2D>,
+    renderer: Renderer,
     dropper: tool::Dropper,
     eraser: tool::Dropper,
     new_world_size: IVec2,
     pulse: Pulse,
-    performance_monitor : PerformanceMonitor,
+    performance_monitor: PerformanceMonitor,
 }
 
 impl Application {
@@ -46,18 +29,18 @@ impl Application {
     pub fn new() -> Application {
         if let Ok(simulation) = Simulation::new(ivec2(0, 0)) {
             let view = View::new(vec2(0.0, 0.0));
-            let textures: Vec<Texture2D> = Vec::new();
+            let renderer = Renderer::new();
             let dropper = tool::Dropper::new(Cell::SAND, 3);
             let eraser = tool::Dropper::new(Cell::AIR, 3);
             let new_world_size = Self::WORLD_SIZE_DEFAULT;
             let mut application = Application {
                 simulation,
                 view,
-                textures,
+                renderer,
                 dropper,
                 eraser,
                 new_world_size,
-                performance_monitor : PerformanceMonitor::new(),
+                performance_monitor: PerformanceMonitor::new(),
                 pulse: Pulse::new(60.0),
             };
             application.generate_simulation(Self::WORLD_SIZE_DEFAULT);
@@ -71,10 +54,7 @@ impl Application {
         let simulation = Simulation::new(world_size);
         if let Ok(simulation) = simulation {
             self.simulation = simulation;
-            let num_of_chunks_total = self.simulation.num_of_chunks();
-            self.textures = std::iter::repeat_with(init_chunk_texture)
-                .take(num_of_chunks_total)
-                .collect();
+            self.renderer.resize(&self.simulation);
             self.view = View::new(vec2(world_size.x as f32, world_size.y as f32));
         } else {
             panic!("AAAHHH!!!")
@@ -115,36 +95,8 @@ impl Application {
     }
 
     pub fn render(&mut self) {
-        self.performance_monitor.meassure_rendering(||{
-            let num_of_chunks_xy = self.simulation.num_of_chunks_xy();
-            let num_of_chunks_total = self.simulation.num_of_chunks();
-            for chunk_index in 0..num_of_chunks_total {
-                let chunk_coord = Grid::map_1d_to_2d(chunk_index, num_of_chunks_xy);
-                let chunk = self.simulation.get_chunk(chunk_coord);
-                let texture = &mut self.textures[chunk_index];
-
-                let mut bytes = [0u8; 4 * Simulation::CELLS_PER_CHUNK];
-                for local_index in 0..Simulation::CELLS_PER_CHUNK {
-                    let [r, g, b, a] = cell_to_color(chunk[local_index]);
-                    bytes[4 * local_index + 0] = r;
-                    bytes[4 * local_index + 1] = g;
-                    bytes[4 * local_index + 2] = b;
-                    bytes[4 * local_index + 3] = a;
-                }
-
-                texture.update_from_bytes(
-                    Simulation::CHUNK_SIZE as u32,
-                    Simulation::CHUNK_SIZE as u32,
-                    &bytes,
-                );
-
-                draw_texture(
-                    texture,
-                    (chunk_coord.x as f32) * (Simulation::CHUNK_SIZE as f32),
-                    (chunk_coord.y as f32) * (Simulation::CHUNK_SIZE as f32),
-                    WHITE,
-                );
-            }
+        self.performance_monitor.meassure_rendering(|| {
+            self.renderer.render(&self.simulation);
         });
     }
 
@@ -200,13 +152,13 @@ impl Application {
                 world_size_y = (world_size_y / CHUNK_SIZE_F).round() * CHUNK_SIZE_F;
                 self.new_world_size = ivec2(world_size_x as i32, world_size_y as i32);
                 if ui.button(None, "World Size: Small") {
-                    self.new_world_size = ivec2(1,1) * WORLD_SIZE_MIN as i32;
+                    self.new_world_size = ivec2(1, 1) * WORLD_SIZE_MIN as i32;
                 }
                 if ui.button(None, "World Size: Default") {
                     self.new_world_size = Self::WORLD_SIZE_DEFAULT;
                 }
                 if ui.button(None, "World Size: Large") {
-                    self.new_world_size = ivec2(1,1) * WORLD_SIZE_MAX as i32;
+                    self.new_world_size = ivec2(1, 1) * WORLD_SIZE_MAX as i32;
                 }
                 if ui.button(None, "New World") {
                     self.generate_simulation(self.new_world_size);
@@ -227,19 +179,30 @@ impl Application {
                         self.simulation.size().y
                     ),
                 );
-                ui.label(None, &format!("FPS:        {:.2}", self.performance_monitor.get_fps()));
+                ui.label(
+                    None,
+                    &format!("FPS:        {:.2}", self.performance_monitor.get_fps()),
+                );
                 ui.label(
                     None,
                     &format!(
                         "Simumation: {} ms",
-                        (self.performance_monitor.get_simulation_duration().as_micros() as f32) / 1000.0
+                        (self
+                            .performance_monitor
+                            .get_simulation_duration()
+                            .as_micros() as f32)
+                            / 1000.0
                     ),
                 );
                 ui.label(
                     None,
                     &format!(
                         "Render:     {} ms",
-                        (self.performance_monitor.get_rendering_duration().as_micros() as f32) / 1000.0
+                        (self
+                            .performance_monitor
+                            .get_rendering_duration()
+                            .as_micros() as f32)
+                            / 1000.0
                     ),
                 );
                 ui.slider(

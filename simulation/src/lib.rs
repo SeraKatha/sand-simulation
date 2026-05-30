@@ -4,16 +4,16 @@ use macroquad::prelude::*;
 mod double_buffer;
 use double_buffer::DoubleBuffer;
 
-mod world_view;
 use macroquad::rand::ChooseRandom;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::slice::{ParallelSliceMut};
-use world_view::WorldView;
 
 mod chunk_view;
-use chunk_view::ChunkViewMut;
-
-use crate::world_view::WorldViewMut;
+pub use chunk_view::ChunkViewMut;
+pub use chunk_view::ChunkView;
+mod world_view;
+pub use world_view::WorldViewMut;
+pub use world_view::WorldView;
 
 
 pub enum Error {
@@ -282,14 +282,24 @@ impl Simulation {
     }
 
 
-    pub fn get_chunk(&self, coord : IVec2) -> &[Cell] {
-        let num_chunks_xy = self.num_of_chunks_xy();
-        let chunk_index = Grid::map_2d_to_1d(coord, num_chunks_xy);
+    fn get_chunk<'a>(&'a self, chunk_coord : IVec2, chunk_index : usize) -> ChunkView<'a, Cell> {
         let global_index = Self::CELLS_PER_CHUNK * chunk_index;
         let read_buffer = self.cells.get_read_buffer();
         let begin = global_index;
         let end = global_index + Self::CELLS_PER_CHUNK;
-        return &read_buffer[begin..end];
+        return ChunkView::new(chunk_index, &read_buffer[begin..end], chunk_coord);
+    }
+
+
+    pub fn get_chunk_by_coord<'a>(&'a self, chunk_coord : IVec2) -> ChunkView<'a, Cell> {
+        let chunk_index = Grid::map_2d_to_1d(chunk_coord, self.num_of_chunks_xy());
+        return self.get_chunk(chunk_coord, chunk_index);
+    }
+
+    
+    pub fn get_chunk_by_index<'a>(&'a self, chunk_index : usize) -> ChunkView<'a, Cell> {
+        let chunk_coord = Grid::map_1d_to_2d(chunk_index, self.num_of_chunks_xy());
+        return self.get_chunk(chunk_coord, chunk_index);
     }
 
 

@@ -4,7 +4,6 @@ pub struct Pulse {
     time_since_last_tick : f32,
 }
 
-
 impl Pulse {
     pub fn new(base_freq : f32) -> Self {
         return Self { base_freq, speed_scale : 1.0, time_since_last_tick: 0.0 };
