@@ -128,6 +128,12 @@ impl Simulation {
                 else if cell_below == Cell::WATER {
                     ivec2(0, 1)
                 }
+                else if cell_below_a == Cell::WATER {
+                    ivec2(0, 1) + offset_a
+                }
+                else if cell_below_b == Cell::WATER {
+                    ivec2(0, 1) + offset_b
+                }
                 else {
                     IVec2::ZERO
                 }
