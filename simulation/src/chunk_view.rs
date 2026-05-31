@@ -1,4 +1,4 @@
-use crate::{Grid, Simulation};
+use crate::{grid, Simulation};
 use macroquad::prelude::*;
 
 // Views to map the 1D slice of all cells in an chunk to 2D coordinate system
@@ -18,12 +18,12 @@ impl<'a, T: Copy> ChunkViewMut<'a, T> {
     }
 
     pub fn get_cell(&self, local_coord: IVec2) -> T {
-        let local_index = Grid::map_2d_to_1d(local_coord, Simulation::CHUNK_SIZE_XY);
+        let local_index = grid::map_2d_to_1d(local_coord, Simulation::CHUNK_SIZE_XY);
         return self.cells[local_index];
     }
 
     pub fn set_cell(&mut self, cell: T, local_coord: IVec2) {
-        let local_index = Grid::map_2d_to_1d(local_coord, Simulation::CHUNK_SIZE_XY);
+        let local_index = grid::map_2d_to_1d(local_coord, Simulation::CHUNK_SIZE_XY);
         self.cells[local_index] = cell;
     }
 
@@ -32,7 +32,7 @@ impl<'a, T: Copy> ChunkViewMut<'a, T> {
     }
 
     pub fn get_chunk_coord(&self) -> IVec2 {
-        return Grid::map_1d_to_2d(
+        return grid::map_1d_to_2d(
             self.chunk_index,
             self.world_size / Simulation::CHUNK_SIZE_XY,
         );
@@ -55,7 +55,7 @@ impl<'a, T: Copy> ChunkView<'a, T> {
     }
 
     pub fn get_cell(&self, local_coord: IVec2) -> T {
-        let local_index = Grid::map_2d_to_1d(local_coord, Simulation::CHUNK_SIZE_XY);
+        let local_index = grid::map_2d_to_1d(local_coord, Simulation::CHUNK_SIZE_XY);
         return self.cells[local_index];
     }
 
@@ -68,7 +68,7 @@ impl<'a, T: Copy> ChunkView<'a, T> {
     }
 
     pub fn get_chunk_coord(&self) -> IVec2 {
-        return Grid::map_1d_to_2d(
+        return grid::map_1d_to_2d(
             self.chunk_index,
             self.world_size / Simulation::CHUNK_SIZE_XY,
         );

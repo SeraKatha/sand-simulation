@@ -1,6 +1,5 @@
 use macroquad::prelude::*;
-use crate::Grid;
-
+use crate::grid;
 
 fn is_in_bounds(global_coord: IVec2, world_size: IVec2) -> bool {
     return (global_coord.x >= 0)
@@ -27,7 +26,7 @@ impl<'a, T: Copy> WorldView<'a, T> {
 
     pub fn get_cell(&self, global_coord: IVec2) -> T {
         if is_in_bounds(global_coord, self.size()) {
-            let global_index = Grid::global_coords_to_index(global_coord, self.size());
+            let global_index = grid::global_coords_to_index(global_coord, self.size());
             return self.cells[global_index];
         } else {
             return self.border;
@@ -56,7 +55,7 @@ impl<'a, T: Copy> WorldViewMut<'a, T> {
 
     pub fn get_cell(&self, global_coord: IVec2) -> T {
         if is_in_bounds(global_coord, self.size()) {
-            let global_index = Grid::global_coords_to_index(global_coord, self.size());
+            let global_index = grid::global_coords_to_index(global_coord, self.size());
             return self.cells[global_index];
         } else {
             return self.border;
@@ -69,7 +68,7 @@ impl<'a, T: Copy> WorldViewMut<'a, T> {
 
     pub fn set_cell(&mut self, global_coord: IVec2, cell: T) {
         if is_in_bounds(global_coord, self.world_size) {
-            let global_index = Grid::global_coords_to_index(global_coord, self.size());
+            let global_index = grid::global_coords_to_index(global_coord, self.size());
             self.cells[global_index] = cell;
         }
     }
