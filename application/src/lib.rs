@@ -139,6 +139,9 @@ impl Application {
                 if ui.button(None, "Lava") {
                     self.dropper.set_material(Cell::Lava);
                 }
+                if ui.button(None, "Steam") {
+                    self.dropper.set_material(Cell::Steam);
+                }
                 let mut tool_size = self.dropper.get_size() as f32;
                 ui.slider(0, "Tool Size", 1.0..10.0, &mut tool_size);
                 self.dropper.set_size(tool_size.round() as i32);

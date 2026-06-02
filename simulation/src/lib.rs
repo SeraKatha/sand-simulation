@@ -111,15 +111,15 @@ impl Simulation {
             Cell::Stone => IVec2::ZERO,
             Cell::Water | Cell::Lava => {
                 let spreads = ::rand::random_bool(1.0 - cell_center.viscosity()) as i32;
-                if cell_below.is_gaseous() {
+                if cell_below.is_empty() {
                     ivec2(0, 1)
-                } else if cell_below_a.is_gaseous() {
+                } else if cell_below_a.is_empty() {
                     spreads * (ivec2(0, 1) + offset_a)
-                } else if cell_below_b.is_gaseous() {
+                } else if cell_below_b.is_empty() {
                     spreads * (ivec2(0, 1) + offset_b)
-                } else if cell_side_a.is_gaseous() {
+                } else if cell_side_a.is_empty() {
                     spreads * (offset_a)
-                } else if cell_side_b.is_gaseous() {
+                } else if cell_side_b.is_empty() {
                     spreads * (offset_b)
                 } else if cell_above == Cell::Sand {
                     spreads * (ivec2(0, -1))
@@ -254,6 +254,17 @@ impl Simulation {
                 for offset in Self::NEIGHBOR_IDX2OFFSET {
                     if read_world.get_cell(global_coord + offset) == Cell::Water {
                         cell = Cell::Stone;
+                    }
+                }
+            }
+
+            if cell == Cell::Steam {
+                const CONDENSATION_RATE : f64 = 0.0001; 
+                if ::rand::random_bool(CONDENSATION_RATE) {
+                    cell = Cell::Water;
+                    for offset in Self::NEIGHBOR_IDX2OFFSET {
+                        if read_world.get_cell(global_coord + offset) == Cell::Air {
+                        }
                     }
                 }
             }
