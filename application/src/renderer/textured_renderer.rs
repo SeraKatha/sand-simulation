@@ -1,4 +1,4 @@
-use macroquad::{miniquad::TextureKind::Texture2D, prelude::*};
+use macroquad::{prelude::*};
 use simulation::{Cell, ChunkView, Simulation};
 use super::Canvas;
 
@@ -62,7 +62,7 @@ impl TexturedRenderer {
             let mut texture_coord = uvec2(local_coord.x as u32  % 16, local_coord.y as u32 % 16);
             let cell = cells[local_index];
             let cell_type_index = cell as usize;
-            if cell == Cell::Water {
+            if cell.is_liquid() {
                 let scroll_offset_x = (self.frame_number as u32 / 4) % 16;
                 if texture_coord.y % 2 == 0{
                     texture_coord.x = (texture_coord.x + scroll_offset_x) % 16;

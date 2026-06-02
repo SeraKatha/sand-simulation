@@ -15,24 +15,14 @@ mod world_view;
 pub use world_view::WorldView;
 pub use world_view::WorldViewMut;
 pub mod grid;
+mod cell;
+pub use cell::Cell;
 
 pub enum Error {
     InvalidWorldSize,
     CellOutOfBounds,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[repr(u8)]
-pub enum Cell {
-    Air,
-    Sand,
-    Stone,
-    Water,
-}
-
-impl Cell {
-    pub const NUM_OF_TYPES : usize = 4; // 
-}
 
 
 pub struct Simulation {
@@ -106,17 +96,11 @@ impl Simulation {
         return match cell_center {
             Cell::Air => IVec2::ZERO,
             Cell::Sand => {
-                if cell_below == Cell::Air {
+                if cell_below.is_non_solid() {
                     ivec2(0, 1)
-                } else if cell_below_a == Cell::Air {
+                } else if cell_below_a.is_non_solid() {
                     ivec2(0, 1) + offset_a
-                } else if cell_below_b == Cell::Air {
-                    ivec2(0, 1) + offset_b
-                } else if cell_below == Cell::Water {
-                    ivec2(0, 1)
-                } else if cell_below_a == Cell::Water {
-                    ivec2(0, 1) + offset_a
-                } else if cell_below_b == Cell::Water {
+                } else if cell_below_b.is_non_solid() {
                     ivec2(0, 1) + offset_b
                 } else {
                     IVec2::ZERO
@@ -124,15 +108,15 @@ impl Simulation {
             }
             Cell::Stone => IVec2::ZERO,
             Cell::Water => {
-                if cell_below == Cell::Air {
+                if cell_below.is_gaseous() {
                     ivec2(0, 1)
-                } else if cell_below_a == Cell::Air {
+                } else if cell_below_a.is_gaseous() {
                     ivec2(0, 1) + offset_a
-                } else if cell_below_b == Cell::Air {
+                } else if cell_below_b.is_gaseous() {
                     ivec2(0, 1) + offset_b
-                } else if cell_side_a == Cell::Air {
+                } else if cell_side_a.is_gaseous() {
                     offset_a
-                } else if cell_side_b == Cell::Air {
+                } else if cell_side_b.is_gaseous() {
                     offset_b
                 } else if cell_above == Cell::Sand {
                     ivec2(0, -1)
