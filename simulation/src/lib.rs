@@ -109,22 +109,23 @@ impl Simulation {
             }
             Cell::Stone => IVec2::ZERO,
             Cell::Water | Cell::Lava => {
+                let spreads = ::rand::random_bool(1.0 - cell_center.viscosity()) as i32;
                 if cell_below.is_gaseous() {
                     ivec2(0, 1)
                 } else if cell_below_a.is_gaseous() {
-                    ivec2(0, 1) + offset_a
+                    spreads * (ivec2(0, 1) + offset_a)
                 } else if cell_below_b.is_gaseous() {
-                    ivec2(0, 1) + offset_b
+                    spreads * (ivec2(0, 1) + offset_b)
                 } else if cell_side_a.is_gaseous() {
-                    offset_a
+                    spreads * (offset_a)
                 } else if cell_side_b.is_gaseous() {
-                    offset_b
+                    spreads * (offset_b)
                 } else if cell_above == Cell::Sand {
-                    ivec2(0, -1)
+                    spreads * (ivec2(0, -1))
                 } else if cell_above_a == Cell::Sand {
-                    ivec2(0, -1) + offset_a
+                    spreads * (ivec2(0, -1) + offset_a)
                 } else if cell_above_b == Cell::Sand {
-                    ivec2(0, -1) + offset_b
+                    spreads * (ivec2(0, -1) + offset_b)
                 } else {
                     IVec2::ZERO
                 }

@@ -22,6 +22,13 @@ impl Cell {
         }
     }
 
+    pub fn viscosity(&self) -> f64 {
+        match self {
+            Self::Lava => 0.9,
+            _ => 0.0,
+        }
+    }
+
     pub fn is_gaseous(&self) -> bool {
         match self {
             Self::Air => true,
