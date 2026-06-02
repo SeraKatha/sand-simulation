@@ -10,14 +10,14 @@ use simulation::{Cell, Simulation};
 
 use performance_monitor::PerformanceMonitor;
 use pulse::Pulse;
-use renderer::Renderer;
+use renderer::SingleColorRenderer;
 use tool::Tool;
 use view::View;
 
 pub struct Application {
     simulation: Simulation,
     view: View,
-    renderer: Renderer,
+    renderer: SingleColorRenderer,
     dropper: tool::Dropper,
     eraser: tool::Dropper,
     new_world_size: IVec2,
@@ -30,7 +30,7 @@ impl Application {
     pub fn new() -> Application {
         if let Ok(simulation) = Simulation::new(ivec2(0, 0)) {
             let view = View::new(vec2(0.0, 0.0));
-            let renderer = Renderer::new();
+            let renderer = SingleColorRenderer::new();
             let dropper = tool::Dropper::new(Cell::SAND, 3);
             let eraser = tool::Dropper::new(Cell::AIR, 3);
             let new_world_size = Self::WORLD_SIZE_DEFAULT;
@@ -64,7 +64,7 @@ impl Application {
         let simulation = Simulation::new(world_size);
         if let Ok(simulation) = simulation {
             self.simulation = simulation;
-            self.renderer.resize(&self.simulation);
+            self.renderer.fit_simulation(&self.simulation);
             self.view = View::new(vec2(world_size.x as f32, world_size.y as f32));
         } else {
             panic!("AAAHHH!!!")
