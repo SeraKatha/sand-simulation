@@ -71,7 +71,7 @@ impl TexturedRenderer {
                     texture_coord.x = (texture_coord.x + scroll_offset_x) % 16;
                 }
                 else {
-                    texture_coord.x = (texture_coord.x - scroll_offset_x) % 16;
+                    texture_coord.x = (texture_coord.x + 16 - scroll_offset_x) % 16;
                 }
             }
             let color = self.cell_textures[cell_type_index].get_pixel(texture_coord.x, texture_coord.y);
