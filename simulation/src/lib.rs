@@ -1,5 +1,6 @@
 use macroquad::math::IVec2;
 use macroquad::prelude::*;
+use serde::{Deserialize, Serialize};
 
 mod double_buffer;
 use double_buffer::DoubleBuffer;
@@ -23,6 +24,7 @@ pub enum Error {
     CellOutOfBounds,
 }
 
+
 pub struct Simulation {
     cells: DoubleBuffer<Vec<Cell>>,
     transmutation_buffer: Vec<Cell>,
@@ -31,6 +33,14 @@ pub struct Simulation {
     world_size: IVec2,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct SaveData {
+    cells : Vec<u8>,
+    world_size_x : i32,
+    world_size_y : i32,
+}
+
+
 impl Simulation {
     pub const CHUNK_SIZE: usize = 32;
     pub const CHUNK_SIZE_XY: IVec2 = ivec2(Self::CHUNK_SIZE as i32, Self::CHUNK_SIZE as i32);
@@ -38,13 +48,13 @@ impl Simulation {
     const NEIGHBOR_COUNT: usize = 8;
     const NEIGHBOR_IDX2OFFSET: [IVec2; Self::NEIGHBOR_COUNT] = [
         ivec2(-1, -1),
-        ivec2(0, -1),
-        ivec2(1, -1),
-        ivec2(-1, 0),
-        ivec2(1, 0),
-        ivec2(-1, 1),
-        ivec2(0, 1),
-        ivec2(1, 1),
+        ivec2( 0, -1),
+        ivec2( 1, -1),
+        ivec2(-1,  0),
+        ivec2( 1,  0),
+        ivec2(-1,  1),
+        ivec2( 0,  1),
+        ivec2( 1,  1),
     ];
 
     pub fn new(world_size: IVec2) -> Result<Simulation, Error> {
@@ -355,5 +365,20 @@ impl Simulation {
 
     pub fn size(&self) -> IVec2 {
         return self.world_size;
+    }
+
+    pub fn from_save_data(save_data : SaveData) -> Result<Simulation, Error> {
+        let world_size = ivec2(save_data.world_size_x, save_data.world_size_y);
+        let mut simulation = Self::new(world_size)?;
+        simulation.cells = DoubleBuffer::new(save_data.cells.iter().map(|x| Cell::try_from(*x).unwrap()).collect());
+        return Ok(simulation);
+    }
+
+    pub fn to_save_data(&self) -> SaveData {
+        return SaveData {
+            cells : self.cells.get_read_buffer().iter().map(|x| *x as u8).collect(),
+            world_size_x : self.world_size.x,
+            world_size_y : self.world_size.y,
+        }
     }
 }

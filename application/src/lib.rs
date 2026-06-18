@@ -6,7 +6,7 @@ mod view;
 
 use macroquad::prelude::*;
 use macroquad::ui::{hash, root_ui, widgets};
-use simulation::{Cell, Simulation};
+use simulation::{Cell, SaveData, Simulation};
 
 use performance_monitor::PerformanceMonitor;
 use pulse::Pulse;
@@ -63,14 +63,24 @@ impl Application {
     }
 
     fn generate_simulation(&mut self, world_size: IVec2) {
-        let simulation = Simulation::new(world_size);
-        if let Ok(simulation) = simulation {
-            self.simulation = simulation;
-            self.renderer.fit_simulation(&self.simulation);
-            self.view = View::new(vec2(world_size.x as f32, world_size.y as f32));
-        } else {
-            panic!("AAAHHH!!!")
+        if let Ok(simulation) = Simulation::new(world_size) {
+            self.change_simulation(simulation);
         }
+    }
+
+    fn load_simulation(&mut self, save_data: SaveData) {
+        if let Ok(simulation) = Simulation::from_save_data(save_data) {
+            self.change_simulation(simulation);
+        }
+    }
+
+    fn change_simulation(&mut self, simulation: Simulation) {
+        self.simulation = simulation;
+        self.renderer.fit_simulation(&self.simulation);
+        self.view = View::new(vec2(
+            self.simulation.size().x as f32,
+            self.simulation.size().y as f32,
+        ));
     }
 
     fn update_simulation(&mut self) {
@@ -187,6 +197,17 @@ impl Application {
                 }
                 if ui.button(None, "New World") {
                     self.generate_simulation(self.new_world_size);
+                }
+                if ui.button(None, "Save") {
+                    let serialized =
+                        serde_json::to_string(&self.simulation.to_save_data()).unwrap();
+                    std::fs::create_dir_all("./saves").unwrap();
+                    std::fs::write("./saves/savedata.json", serialized).unwrap();
+                }
+                if ui.button(None, "Load") {
+                    let serialized = std::fs::read_to_string("./saves/savedata.json").unwrap();
+                    let save_data: SaveData = serde_json::from_str(&serialized).unwrap();
+                    self.load_simulation(save_data)
                 }
             });
     }

@@ -1,13 +1,33 @@
-#[derive(Clone, Copy, Debug, PartialEq)]
+use serde::{Deserialize, Serialize};
+
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize)]
 pub enum Cell {
-    Barrier,
-    Air,
-    Sand,
-    Stone,
-    Water,
-    Lava,
-    Steam,
+    Barrier = 0,
+    Air = 1,
+    Sand = 2,
+    Stone = 3,
+    Water = 4,
+    Lava = 5,
+    Steam = 6,
+}
+
+impl TryFrom<u8> for Cell {
+    type Error = ();
+    
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Barrier),
+            1 => Ok(Self::Air),
+            2 => Ok(Self::Sand),
+            3 => Ok(Self::Stone),
+            4 => Ok(Self::Water),
+            5 => Ok(Self::Lava),
+            6 => Ok(Self::Steam),
+            _ => Err(()),
+        }
+    }
 }
 
 impl Cell {
