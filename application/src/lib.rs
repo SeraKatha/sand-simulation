@@ -10,7 +10,6 @@ use simulation::{Cell, SaveData, Simulation};
 
 use performance_monitor::PerformanceMonitor;
 use pulse::Pulse;
-use renderer::SingleColorRenderer;
 use renderer::TexturedRenderer;
 use renderer::Renderer;
 use tool::Tool;

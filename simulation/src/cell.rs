@@ -50,27 +50,6 @@ impl Cell {
         }
     }
 
-    pub fn is_gaseous(&self) -> bool {
-        match self {
-            Self::Air => true,
-            Self::Steam => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_solid(&self) -> bool {
-        match self {
-            Self::Barrier => true,
-            Self::Sand => true,
-            Self::Stone => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_non_solid(&self) -> bool {
-        !self.is_solid()
-    }
-
     pub fn is_hot(&self) -> bool {
         match self {
             Self::Lava => true,
@@ -78,10 +57,63 @@ impl Cell {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub fn density(&self) -> i32 {
         match self {
-            Self::Air => true,
-            _ => false,
+            Cell::Barrier => 0,
+            Cell::Air     => 1,
+            Cell::Sand    => 4,
+            Cell::Stone   => 0,
+            Cell::Water   => 2,
+            Cell::Lava    => 2,
+            Cell::Steam   => 0,
+        }
+    }
+
+    pub fn is_falling(&self) -> bool {
+        match self {
+            Cell::Barrier => false,
+            Cell::Air     => true,
+            Cell::Sand    => true,
+            Cell::Stone   => false,
+            Cell::Water   => true,
+            Cell::Lava    => true,
+            Cell::Steam   => true,
+        }
+    }
+
+    pub fn is_piling(&self) -> bool {
+        match self {
+            Cell::Barrier => false,
+            Cell::Air     => true,
+            Cell::Sand    => true,
+            Cell::Stone   => false,
+            Cell::Water   => true,
+            Cell::Lava    => true,
+            Cell::Steam   => true,
+        }
+    }
+
+    pub fn is_spreading(&self) -> bool {
+        match self {
+            Cell::Barrier => false,
+            Cell::Air     => true,
+            Cell::Sand    => false,
+            Cell::Stone   => false,
+            Cell::Water   => true,
+            Cell::Lava    => true,
+            Cell::Steam   => true,
+        }
+    }
+
+    pub fn is_displaceable(&self) -> bool {
+        match self {
+            Cell::Barrier => false,
+            Cell::Air     => true,
+            Cell::Sand    => false,
+            Cell::Stone   => false,
+            Cell::Water   => true,
+            Cell::Lava    => true,
+            Cell::Steam   => true,
         }
     }
 }

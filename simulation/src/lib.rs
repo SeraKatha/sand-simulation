@@ -52,9 +52,9 @@ impl Simulation {
         ivec2( 1, -1),
         ivec2(-1,  0),
         ivec2( 1,  0),
-        ivec2(-1,  1),
-        ivec2( 0,  1),
-        ivec2( 1,  1),
+        ivec2(-1, -1),
+        ivec2( 0, -1),
+        ivec2( 1, -1),
     ];
 
     pub fn new(world_size: IVec2) -> Result<Simulation, Error> {
@@ -69,7 +69,7 @@ impl Simulation {
         let transmutation_buffer = cells.clone();
 
         let push_buffer = Vec::from_iter(std::iter::repeat_with(|| IVec2::ZERO).take(num_of_cells));
-        let pull_buffer = Vec::from_iter(std::iter::repeat_with(|| [false; 8]).take(num_of_cells));
+        let pull_buffer = Vec::from_iter(std::iter::repeat_with(|| [false; Self::NEIGHBOR_COUNT]).take(num_of_cells));
 
         return Ok(Simulation {
             cells: DoubleBuffer::new(cells),
@@ -104,63 +104,50 @@ impl Simulation {
         let cell_above_b = read_world.get_cell(global_coord - ivec2(0, 1) + offset_b);
         let cell_side_a = read_world.get_cell(global_coord + offset_a);
         let cell_side_b = read_world.get_cell(global_coord + offset_b);
-        return match cell_center {
-            Cell::Barrier => IVec2::ZERO,
-            Cell::Air => IVec2::ZERO,
-            Cell::Sand => {
-                if cell_below.is_non_solid() {
-                    ivec2(0, 1)
-                } else if cell_below_a.is_non_solid() {
-                    ivec2(0, 1) + offset_a
-                } else if cell_below_b.is_non_solid() {
-                    ivec2(0, 1) + offset_b
-                } else {
-                    IVec2::ZERO
-                }
-            }
-            Cell::Stone => IVec2::ZERO,
-            Cell::Water | Cell::Lava => {
-                let spreads = ::rand::random_bool(1.0 - cell_center.viscosity()) as i32;
-                if cell_below.is_empty() {
-                    ivec2(0, 1)
-                } else if cell_below_a.is_empty() {
-                    spreads * (ivec2(0, 1) + offset_a)
-                } else if cell_below_b.is_empty() {
-                    spreads * (ivec2(0, 1) + offset_b)
-                } else if cell_side_a.is_empty() {
-                    spreads * (offset_a)
-                } else if cell_side_b.is_empty() {
-                    spreads * (offset_b)
-                } else if cell_above == Cell::Sand {
-                    spreads * (ivec2(0, -1))
-                } else if cell_above_a == Cell::Sand {
-                    spreads * (ivec2(0, -1) + offset_a)
-                } else if cell_above_b == Cell::Sand {
-                    spreads * (ivec2(0, -1) + offset_b)
-                } else {
-                    IVec2::ZERO
-                }
-            }
-            Cell::Steam => {
-                if cell_above_a.is_empty() {
-                    ivec2(0, -1) + offset_a
-                } else if cell_above_b.is_empty() {
-                    ivec2(0, -1) + offset_b
-                } else if cell_side_a.is_empty() {
-                    offset_a
-                } else if cell_side_b.is_empty() {
-                    offset_b
-                } else if cell_above.is_liquid() {
-                    ivec2(0, -1)
-                } else if cell_above_a.is_liquid() {
-                    ivec2(0, -1) + offset_a
-                } else if cell_above_b.is_liquid() {
-                    ivec2(0, -1) + offset_b
-                } else {
-                    IVec2::ZERO
-                }
-            }
-        };
+
+        let is_falling
+            = cell_center.is_falling()
+            && cell_below.is_falling()
+            && cell_center.density() > cell_below.density();
+        let is_piling_a    
+            = cell_center.is_piling()
+            && cell_below_a.is_piling()
+            && cell_center.density() > cell_below_a.density();
+        let is_piling_b    
+            = cell_center.is_piling()
+            && cell_below_b.is_piling()
+            && cell_center.density() > cell_below_b.density();
+        let is_spreading_a 
+            = cell_center.is_spreading()
+            && cell_side_a.is_spreading()
+            && cell_center.density() > cell_side_a.density();
+        let is_spreading_b 
+            = cell_center.is_spreading()
+            && cell_side_b.is_spreading()
+            && cell_center.density() > cell_side_b.density();
+        let is_rising
+            = cell_center.is_falling()
+            && cell_above.is_falling()
+            && cell_center.density() < cell_above.density();
+        let is_rising_a
+            = cell_center.is_piling()
+            && cell_above_a.is_piling()
+            && cell_center.density() < cell_above_a.density();
+        let is_rising_b
+            = cell_center.is_piling()
+            && cell_above_b.is_piling()
+            && cell_center.density() < cell_above_b.density();
+
+        return None
+            .or_else(||is_falling.then_some(ivec2(0, 1)))
+            .or_else(||is_piling_a.then_some(ivec2(0, 1) + offset_a))
+            .or_else(||is_piling_b.then_some(ivec2(0, 1) + offset_b) )
+            .or_else(||is_spreading_a.then_some(offset_a) )
+            .or_else(||is_spreading_b.then_some(offset_b))
+            .or_else(||is_rising.then_some(ivec2(0, -1)))
+            .or_else(||is_rising_a.then_some(ivec2(0, -1) + offset_a) )
+            .or_else(||is_rising_b.then_some(ivec2(0, -1) + offset_b))
+            .unwrap_or(IVec2::ZERO);
     }
 
     fn update_push_vectors(
@@ -200,7 +187,7 @@ impl Simulation {
                     size += 1;
                 }
             }
-            let mut new_pulls = [false; 8];
+            let mut new_pulls = [false; Self::NEIGHBOR_COUNT];
             if let Some(picked_pull) = pulls[0..size].choose() {
                 new_pulls[*picked_pull] = true;
             }
@@ -284,8 +271,9 @@ impl Simulation {
 
     pub fn tick(&mut self) {
         let world_size = self.size();
-
         let (read_buffer, write_buffer) = self.cells.pick_read_and_write_buffer();
+        println!("Water: {}", read_buffer.iter().filter(|c| **c==Cell::Water).count());
+        println!("Sand:  {}", read_buffer.iter().filter(|c| **c==Cell::Sand).count());
         let read_world = WorldView::new(read_buffer, world_size, Cell::Barrier);
         self.push_buffer
             .par_chunks_mut(Self::CELLS_PER_CHUNK)
