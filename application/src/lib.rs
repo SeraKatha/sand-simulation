@@ -4,6 +4,8 @@ mod renderer;
 mod tool;
 mod view;
 
+use std::ptr::hash;
+
 use macroquad::prelude::*;
 use macroquad::ui::{hash, root_ui, widgets};
 use simulation::{Cell, SaveData, Simulation};
@@ -133,29 +135,31 @@ impl Application {
             .label("Tool")
             .movable(false)
             .ui(&mut root_ui(), |ui| {
-                if ui.button(None, "Air") {
-                    self.dropper.set_material(Cell::Air);
-                }
-                if ui.button(None, "Sand") {
-                    self.dropper.set_material(Cell::Sand);
-                }
-                if ui.button(None, "Water") {
-                    self.dropper.set_material(Cell::Water);
-                }
-                if ui.button(None, "Stone") {
-                    self.dropper.set_material(Cell::Stone);
-                }
-                if ui.button(None, "Lava") {
-                    self.dropper.set_material(Cell::Lava);
-                }
-                if ui.button(None, "Steam") {
-                    self.dropper.set_material(Cell::Steam);
-                }
                 let mut tool_size = self.dropper.get_size() as f32;
                 ui.slider(0, "Tool Size", 1.0..10.0, &mut tool_size);
                 self.dropper.set_size(tool_size.round() as i32);
                 self.eraser.set_size(tool_size.round() as i32);
-            });
+
+                let materials = [
+                    ("Air",   Cell::Air),
+                    ("Sand",  Cell::Sand),
+                    ("Water", Cell::Water),
+                    ("Stone", Cell::Stone),
+                    ("Lava",  Cell::Lava),
+                    ("Steam", Cell::Steam),
+                ];
+
+                for (i, (label, cell)) in materials.iter().enumerate() {
+                    let spacing_h = 50.0;
+                    let spacing_v = 20.0;
+                    let columns = 2;
+                    let offset = vec2(spacing_h * (i % columns) as f32, spacing_v * (i / columns) as f32); 
+                    if ui.button(vec2(2.0, 24.0) + offset, *label) {
+                        self.dropper.set_material(*cell);
+                    }
+                }
+            }
+        );
     }
 
     fn ui_world(&mut self) {

@@ -104,16 +104,4 @@ impl Cell {
             Cell::Steam   => true,
         }
     }
-
-    pub fn is_displaceable(&self) -> bool {
-        match self {
-            Cell::Barrier => false,
-            Cell::Air     => true,
-            Cell::Sand    => false,
-            Cell::Stone   => false,
-            Cell::Water   => true,
-            Cell::Lava    => true,
-            Cell::Steam   => true,
-        }
-    }
 }
