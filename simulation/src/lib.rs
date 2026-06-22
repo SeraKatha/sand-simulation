@@ -272,8 +272,8 @@ impl Simulation {
     pub fn tick(&mut self) {
         let world_size = self.size();
         let (read_buffer, write_buffer) = self.cells.pick_read_and_write_buffer();
-        println!("Water: {}", read_buffer.iter().filter(|c| **c==Cell::Water).count());
-        println!("Sand:  {}", read_buffer.iter().filter(|c| **c==Cell::Sand).count());
+        // println!("Water: {}", read_buffer.iter().filter(|c| **c==Cell::Water).count());
+        // println!("Sand:  {}", read_buffer.iter().filter(|c| **c==Cell::Sand).count());
         let read_world = WorldView::new(read_buffer, world_size, Cell::Barrier);
         self.push_buffer
             .par_chunks_mut(Self::CELLS_PER_CHUNK)

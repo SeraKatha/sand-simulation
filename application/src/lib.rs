@@ -4,8 +4,6 @@ mod renderer;
 mod tool;
 mod view;
 
-use std::ptr::hash;
-
 use macroquad::prelude::*;
 use macroquad::ui::{hash, root_ui, widgets};
 use simulation::{Cell, SaveData, Simulation};
@@ -17,6 +15,8 @@ use renderer::Renderer;
 use tool::Tool;
 use view::View;
 
+use crate::file_explorer::FileExplorer;
+mod file_explorer;
 pub struct Application {
     simulation: Simulation,
     view: View,
@@ -26,6 +26,7 @@ pub struct Application {
     new_world_size: IVec2,
     pulse: Pulse,
     performance_monitor: PerformanceMonitor,
+    file_explorer : FileExplorer,
 }
 
 impl Application {
@@ -45,6 +46,7 @@ impl Application {
                 eraser,
                 new_world_size,
                 performance_monitor: PerformanceMonitor::new(),
+                file_explorer : file_explorer::FileExplorer::new(),
                 pulse: Pulse::new(60.0),
             };
             application.generate_simulation(Self::WORLD_SIZE_DEFAULT);
@@ -65,23 +67,13 @@ impl Application {
 
     fn generate_simulation(&mut self, world_size: IVec2) {
         if let Ok(simulation) = Simulation::new(world_size) {
-            self.change_simulation(simulation);
+            self.simulation = simulation;
+            self.renderer.fit_simulation(&self.simulation);
+            self.view = View::new(vec2(
+                self.simulation.size().x as f32,
+                self.simulation.size().y as f32,
+            ));
         }
-    }
-
-    fn load_simulation(&mut self, save_data: SaveData) {
-        if let Ok(simulation) = Simulation::from_save_data(save_data) {
-            self.change_simulation(simulation);
-        }
-    }
-
-    fn change_simulation(&mut self, simulation: Simulation) {
-        self.simulation = simulation;
-        self.renderer.fit_simulation(&self.simulation);
-        self.view = View::new(vec2(
-            self.simulation.size().x as f32,
-            self.simulation.size().y as f32,
-        ));
     }
 
     fn update_simulation(&mut self) {
@@ -114,11 +106,13 @@ impl Application {
     }
 
     fn update(&mut self) {
-        self.update_simulation();
-        self.update_tool();
-        self.simulation.swap_buffers();
-        self.view.update();
-        self.performance_monitor.meassure_frame();
+        if self.file_explorer.state() == file_explorer::State::CLOSED {
+            self.update_simulation();
+            self.update_tool();
+            self.simulation.swap_buffers();
+            self.view.update();
+            self.performance_monitor.meassure_frame();
+        }
     }
 
     fn render(&mut self) {
@@ -163,7 +157,7 @@ impl Application {
     }
 
     fn ui_world(&mut self) {
-        widgets::Window::new(hash!(), vec2(0.0, 150.0), vec2(200.0, 150.0))
+        widgets::Window::new(hash!(), vec2(0.0, 150.0), vec2(200.0, 200.0))
             .label("World Creator")
             .movable(false)
             .ui(&mut root_ui(), |ui| {
@@ -201,22 +195,17 @@ impl Application {
                 if ui.button(None, "New World") {
                     self.generate_simulation(self.new_world_size);
                 }
-                if ui.button(None, "Save") {
-                    let serialized =
-                        serde_json::to_string(&self.simulation.to_save_data()).unwrap();
-                    std::fs::create_dir_all("./saves").unwrap();
-                    std::fs::write("./saves/savedata.json", serialized).unwrap();
-                }
                 if ui.button(None, "Load") {
-                    let serialized = std::fs::read_to_string("./saves/savedata.json").unwrap();
-                    let save_data: SaveData = serde_json::from_str(&serialized).unwrap();
-                    self.load_simulation(save_data)
+                    self.file_explorer.load();
+                }
+                if ui.button(None, "Save") {
+                    self.file_explorer.save();
                 }
             });
     }
 
     fn ui_performance(&mut self) {
-        widgets::Window::new(hash!(), vec2(0.0, 300.0), vec2(200.0, 150.0))
+        widgets::Window::new(hash!(), vec2(0.0, 350.0), vec2(200.0, 150.0))
             .label("Performance and Speed")
             .movable(false)
             .ui(&mut root_ui(), |ui| {
@@ -267,5 +256,32 @@ impl Application {
         self.ui_tool();
         self.ui_world();
         self.ui_performance();
+        match self.file_explorer.state() {
+            file_explorer::State::SAVE => {
+                let on_save = |path| {
+                    let serialized =
+                        serde_json::to_string(&self.simulation.to_save_data()).unwrap();
+                        std::fs::create_dir_all("./saves").unwrap();
+                        std::fs::write(path, serialized).unwrap();
+                };
+                 self.file_explorer.ui(on_save, |_|{});
+            }
+            file_explorer::State::LOAD => {
+                let on_load = |path| {
+                    let serialized = std::fs::read_to_string(path).unwrap();
+                    let save_data: SaveData = serde_json::from_str(&serialized).unwrap();
+                    if let Ok(simulation) = Simulation::from_save_data(save_data) {
+                        self.simulation = simulation;
+                        self.renderer.fit_simulation(&self.simulation);
+                        self.view = View::new(vec2(
+                            self.simulation.size().x as f32,
+                            self.simulation.size().y as f32,
+                        ));
+                    }
+                };
+                self.file_explorer.ui(|_|{}, on_load);
+            }
+            file_explorer::State::CLOSED => {},
+        }
     }
 }
