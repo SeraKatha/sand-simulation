@@ -24,7 +24,6 @@ pub enum Error {
     CellOutOfBounds,
 }
 
-
 pub struct Simulation {
     cells: DoubleBuffer<Vec<Cell>>,
     transmutation_buffer: Vec<Cell>,
@@ -35,11 +34,10 @@ pub struct Simulation {
 
 #[derive(Serialize, Deserialize)]
 pub struct SaveData {
-    cells : Vec<u8>,
-    world_size_x : i32,
-    world_size_y : i32,
+    cells: Vec<u8>,
+    world_size_x: i32,
+    world_size_y: i32,
 }
-
 
 impl Simulation {
     pub const CHUNK_SIZE: usize = 32;
@@ -48,13 +46,13 @@ impl Simulation {
     const NEIGHBOR_COUNT: usize = 8;
     const NEIGHBOR_IDX2OFFSET: [IVec2; Self::NEIGHBOR_COUNT] = [
         ivec2(-1, -1),
-        ivec2( 0, -1),
-        ivec2( 1, -1),
-        ivec2(-1,  0),
-        ivec2( 1,  0),
+        ivec2(0, -1),
+        ivec2(1, -1),
+        ivec2(-1, 0),
+        ivec2(1, 0),
         ivec2(-1, -1),
-        ivec2( 0, -1),
-        ivec2( 1, -1),
+        ivec2(0, -1),
+        ivec2(1, -1),
     ];
 
     pub fn new(world_size: IVec2) -> Result<Simulation, Error> {
@@ -69,7 +67,9 @@ impl Simulation {
         let transmutation_buffer = cells.clone();
 
         let push_buffer = Vec::from_iter(std::iter::repeat_with(|| IVec2::ZERO).take(num_of_cells));
-        let pull_buffer = Vec::from_iter(std::iter::repeat_with(|| [false; Self::NEIGHBOR_COUNT]).take(num_of_cells));
+        let pull_buffer = Vec::from_iter(
+            std::iter::repeat_with(|| [false; Self::NEIGHBOR_COUNT]).take(num_of_cells),
+        );
 
         return Ok(Simulation {
             cells: DoubleBuffer::new(cells),
@@ -105,48 +105,48 @@ impl Simulation {
         let cell_side_a = read_world.get_cell(global_coord + offset_a);
         let cell_side_b = read_world.get_cell(global_coord + offset_b);
 
-        let is_falling
-            = cell_center.is_falling()
+        let viscosity_slow_down = ::rand::random_bool(1.0 - cell_center.viscosity());
+
+        let is_falling = cell_center.is_falling()
             && cell_below.is_falling()
             && cell_center.density() > cell_below.density();
-        let is_piling_a    
-            = cell_center.is_piling()
+        let is_piling_a = cell_center.is_piling()
             && cell_below_a.is_piling()
-            && cell_center.density() > cell_below_a.density();
-        let is_piling_b    
-            = cell_center.is_piling()
+            && cell_center.density() > cell_below_a.density()
+            && viscosity_slow_down;
+        let is_piling_b = cell_center.is_piling()
             && cell_below_b.is_piling()
-            && cell_center.density() > cell_below_b.density();
-        let is_spreading_a 
-            = cell_center.is_spreading()
+            && cell_center.density() > cell_below_b.density()
+            && viscosity_slow_down;
+        let is_spreading_a = cell_center.is_spreading()
             && cell_side_a.is_spreading()
-            && cell_center.density() > cell_side_a.density();
-        let is_spreading_b 
-            = cell_center.is_spreading()
+            && cell_center.density() > cell_side_a.density()
+            && viscosity_slow_down;
+        let is_spreading_b = cell_center.is_spreading()
             && cell_side_b.is_spreading()
-            && cell_center.density() > cell_side_b.density();
-        let is_rising
-            = cell_center.is_falling()
+            && cell_center.density() > cell_side_b.density()
+            && viscosity_slow_down;
+        let is_rising = cell_center.is_falling()
             && cell_above.is_falling()
-            && cell_center.density() < cell_above.density();
-        let is_rising_a
-            = cell_center.is_piling()
+            && cell_center.density() < cell_above.density()
+            && viscosity_slow_down;
+        let is_rising_a = cell_center.is_piling()
             && cell_above_a.is_piling()
-            && cell_center.density() < cell_above_a.density();
-        let is_rising_b
-            = cell_center.is_piling()
+            && cell_center.density() < cell_above_a.density()
+            && viscosity_slow_down;
+        let is_rising_b = cell_center.is_piling()
             && cell_above_b.is_piling()
             && cell_center.density() < cell_above_b.density();
 
         return None
-            .or_else(||is_falling.then_some(ivec2(0, 1)))
-            .or_else(||is_piling_a.then_some(ivec2(0, 1) + offset_a))
-            .or_else(||is_piling_b.then_some(ivec2(0, 1) + offset_b) )
-            .or_else(||is_spreading_a.then_some(offset_a) )
-            .or_else(||is_spreading_b.then_some(offset_b))
-            .or_else(||is_rising.then_some(ivec2(0, -1)))
-            .or_else(||is_rising_a.then_some(ivec2(0, -1) + offset_a) )
-            .or_else(||is_rising_b.then_some(ivec2(0, -1) + offset_b))
+            .or_else(|| is_falling.then_some(ivec2(0, 1)))
+            .or_else(|| is_piling_a.then_some(ivec2(0, 1) + offset_a))
+            .or_else(|| is_piling_b.then_some(ivec2(0, 1) + offset_b))
+            .or_else(|| is_spreading_a.then_some(offset_a))
+            .or_else(|| is_spreading_b.then_some(offset_b))
+            .or_else(|| is_rising.then_some(ivec2(0, -1)))
+            .or_else(|| is_rising_a.then_some(ivec2(0, -1) + offset_a))
+            .or_else(|| is_rising_b.then_some(ivec2(0, -1) + offset_b))
             .unwrap_or(IVec2::ZERO);
     }
 
@@ -256,12 +256,11 @@ impl Simulation {
             }
 
             if cell == Cell::Steam {
-                const CONDENSATION_RATE : f64 = 0.0001; 
+                const CONDENSATION_RATE: f64 = 0.0001;
                 if ::rand::random_bool(CONDENSATION_RATE) {
                     cell = Cell::Water;
                     for offset in Self::NEIGHBOR_IDX2OFFSET {
-                        if read_world.get_cell(global_coord + offset) == Cell::Air {
-                        }
+                        if read_world.get_cell(global_coord + offset) == Cell::Air {}
                     }
                 }
             }
@@ -307,18 +306,16 @@ impl Simulation {
                     &read_world_pull,
                 )
             });
-        
-        let read_world_transformation = &WorldView::new(&self.transmutation_buffer, world_size, Cell::Barrier);
-        
+
+        let read_world_transformation =
+            &WorldView::new(&self.transmutation_buffer, world_size, Cell::Barrier);
+
         write_buffer
             .par_chunks_mut(Self::CELLS_PER_CHUNK)
             .enumerate()
             .map(|(chunk_index, chunk)| ChunkViewMut::new(chunk_index, chunk, world_size))
             .for_each(|mut write_chunk| {
-                Self::resolve_transmutation(
-                    &mut write_chunk,
-                    &read_world_transformation,
-                )
+                Self::resolve_transmutation(&mut write_chunk, &read_world_transformation)
             });
     }
 
@@ -355,18 +352,29 @@ impl Simulation {
         return self.world_size;
     }
 
-    pub fn from_save_data(save_data : SaveData) -> Result<Simulation, Error> {
+    pub fn from_save_data(save_data: SaveData) -> Result<Simulation, Error> {
         let world_size = ivec2(save_data.world_size_x, save_data.world_size_y);
         let mut simulation = Self::new(world_size)?;
-        simulation.cells = DoubleBuffer::new(save_data.cells.iter().map(|x| Cell::try_from(*x).unwrap()).collect());
+        simulation.cells = DoubleBuffer::new(
+            save_data
+                .cells
+                .iter()
+                .map(|x| Cell::try_from(*x).unwrap())
+                .collect(),
+        );
         return Ok(simulation);
     }
 
     pub fn to_save_data(&self) -> SaveData {
         return SaveData {
-            cells : self.cells.get_read_buffer().iter().map(|x| *x as u8).collect(),
-            world_size_x : self.world_size.x,
-            world_size_y : self.world_size.y,
-        }
+            cells: self
+                .cells
+                .get_read_buffer()
+                .iter()
+                .map(|x| *x as u8)
+                .collect(),
+            world_size_x: self.world_size.x,
+            world_size_y: self.world_size.y,
+        };
     }
 }
