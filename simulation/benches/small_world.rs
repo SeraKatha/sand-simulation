@@ -3,7 +3,7 @@ use macroquad::math::ivec2;
 
 fn benchmark(c: &mut Criterion) {
     let world_size = ivec2(32, 32);
-    if let Ok(mut simulation) = simulation::Simulation::new(world_size) {
+    if let Ok(mut simulation) = simulation::Simulation::new(world_size, simulation::EmptyWorldGenerator::new()) {
         for y in 0..world_size.y {
             for x in 0..world_size.x {
                 let cell = match rand::random::<u32>() % 4 {

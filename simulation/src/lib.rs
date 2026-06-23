@@ -19,6 +19,9 @@ mod cell;
 pub mod grid;
 pub use cell::Cell;
 
+mod world_gen;
+pub use world_gen::*;
+
 pub enum Error {
     InvalidWorldSize,
     CellOutOfBounds,
@@ -55,7 +58,7 @@ impl Simulation {
         ivec2(1, -1),
     ];
 
-    pub fn new(world_size: IVec2) -> Result<Simulation, Error> {
+    pub fn new(world_size: IVec2, generator : impl world_gen::WorldGenerator) -> Result<Simulation, Error> {
         if (world_size.x as usize % Self::CHUNK_SIZE) != 0 {
             return Err(Error::InvalidWorldSize);
         }
@@ -71,13 +74,23 @@ impl Simulation {
             std::iter::repeat_with(|| [false; Self::NEIGHBOR_COUNT]).take(num_of_cells),
         );
 
-        return Ok(Simulation {
+        let mut simulation = Ok(Simulation {
             cells: DoubleBuffer::new(cells),
             transmutation_buffer,
             world_size,
             push_buffer,
             pull_buffer,
-        });
+        })?;
+
+        for x in 0..world_size.x {
+            for y in 0..world_size.y {
+                let pos = ivec2(x, y);
+                simulation.write_cell(pos, generator.gen_cell(pos, world_size));
+            }
+        }
+        simulation.swap_buffers();
+
+        return Ok(simulation);
     }
 
     pub fn num_of_chunks_xy(&self) -> IVec2 {
@@ -354,7 +367,7 @@ impl Simulation {
 
     pub fn from_save_data(save_data: SaveData) -> Result<Simulation, Error> {
         let world_size = ivec2(save_data.world_size_x, save_data.world_size_y);
-        let mut simulation = Self::new(world_size)?;
+        let mut simulation = Self::new(world_size, world_gen::EmptyWorldGenerator::new())?;
         simulation.cells = DoubleBuffer::new(
             save_data
                 .cells

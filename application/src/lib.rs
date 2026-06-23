@@ -33,7 +33,7 @@ pub struct Application {
 impl Application {
     const WORLD_SIZE_DEFAULT: IVec2 = ivec2(128, 128);
     pub fn new() -> Application {
-        if let Ok(simulation) = Simulation::new(ivec2(0, 0)) {
+        if let Ok(simulation) = Simulation::new(ivec2(0, 0), simulation::EmptyWorldGenerator::new()) {
             let view = View::new(vec2(0.0, 0.0));
             let renderer = TexturedRenderer::new();
             let dropper = tool::Dropper::new(Cell::Sand, 3);
@@ -50,7 +50,7 @@ impl Application {
                 file_explorer: file_explorer::FileExplorer::new(),
                 pulse: Pulse::new(60.0),
             };
-            application.generate_simulation(Self::WORLD_SIZE_DEFAULT);
+            application.generate_simulation(Self::WORLD_SIZE_DEFAULT, simulation::EmptyWorldGenerator::new());
             return application;
         } else {
             panic!("AAAHHH!!!")
@@ -66,8 +66,8 @@ impl Application {
         }
     }
 
-    fn generate_simulation(&mut self, world_size: IVec2) {
-        if let Ok(simulation) = Simulation::new(world_size) {
+    fn generate_simulation(&mut self, world_size: IVec2, world_generator : impl simulation::WorldGenerator) {
+        if let Ok(simulation) = Simulation::new(world_size, world_generator) {
             self.simulation = simulation;
             self.renderer.fit_simulation(&self.simulation);
             self.view = View::new(vec2(
@@ -161,7 +161,7 @@ impl Application {
     }
 
     fn ui_world(&mut self) {
-        widgets::Window::new(hash!(), vec2(0.0, 150.0), vec2(200.0, 200.0))
+        widgets::Window::new(hash!(), vec2(0.0, 150.0), vec2(200.0, 250.0))
             .label("World Creator")
             .movable(false)
             .ui(&mut root_ui(), |ui| {
@@ -196,8 +196,14 @@ impl Application {
                 if ui.button(None, "World Size: Large") {
                     self.new_world_size = ivec2(1, 1) * WORLD_SIZE_MAX as i32;
                 }
-                if ui.button(None, "New World") {
-                    self.generate_simulation(self.new_world_size);
+                if ui.button(None, "Empty World") {
+                    self.generate_simulation(self.new_world_size, simulation::EmptyWorldGenerator::new());
+                }
+                if ui.button(None, "Random World") {
+                    self.generate_simulation(self.new_world_size, simulation::RandomWorldGenerator::new());
+                }
+                if ui.button(None, "Island World") {
+                    self.generate_simulation(self.new_world_size, simulation::IslandWorldGenerator::new());
                 }
                 if ui.button(None, "Load") {
                     self.file_explorer.load();
@@ -209,7 +215,7 @@ impl Application {
     }
 
     fn ui_performance(&mut self) {
-        widgets::Window::new(hash!(), vec2(0.0, 350.0), vec2(200.0, 150.0))
+        widgets::Window::new(hash!(), vec2(0.0, 400.0), vec2(200.0, 150.0))
             .label("Performance and Speed")
             .movable(false)
             .ui(&mut root_ui(), |ui| {
@@ -257,7 +263,7 @@ impl Application {
     }
 
     fn ui_rendering(&mut self) {
-        widgets::Window::new(hash!(), vec2(0.0, 500.0), vec2(200.0, 150.0))
+        widgets::Window::new(hash!(), vec2(0.0, 550.0), vec2(200.0, 150.0))
             .label("Rendering")
             .movable(false)
             .ui(&mut root_ui(), |ui| {
