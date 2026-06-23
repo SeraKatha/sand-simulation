@@ -16,17 +16,18 @@ use tool::Tool;
 use view::View;
 
 use crate::file_explorer::FileExplorer;
+use crate::renderer::SingleColorRenderer;
 mod file_explorer;
 pub struct Application {
     simulation: Simulation,
     view: View,
-    renderer: TexturedRenderer,
+    renderer: Box::<dyn Renderer>,
     dropper: tool::Dropper,
     eraser: tool::Dropper,
     new_world_size: IVec2,
     pulse: Pulse,
     performance_monitor: PerformanceMonitor,
-    file_explorer : FileExplorer,
+    file_explorer: FileExplorer,
 }
 
 impl Application {
@@ -41,12 +42,12 @@ impl Application {
             let mut application = Application {
                 simulation,
                 view,
-                renderer,
+                renderer : Box::from(renderer),
                 dropper,
                 eraser,
                 new_world_size,
                 performance_monitor: PerformanceMonitor::new(),
-                file_explorer : file_explorer::FileExplorer::new(),
+                file_explorer: file_explorer::FileExplorer::new(),
                 pulse: Pulse::new(60.0),
             };
             application.generate_simulation(Self::WORLD_SIZE_DEFAULT);
@@ -135,11 +136,11 @@ impl Application {
                 self.eraser.set_size(tool_size.round() as i32);
 
                 let materials = [
-                    ("Air",   Cell::Air),
-                    ("Sand",  Cell::Sand),
+                    ("Air", Cell::Air),
+                    ("Sand", Cell::Sand),
                     ("Water", Cell::Water),
                     ("Stone", Cell::Stone),
-                    ("Lava",  Cell::Lava),
+                    ("Lava", Cell::Lava),
                     ("Steam", Cell::Steam),
                 ];
 
@@ -147,7 +148,10 @@ impl Application {
                     let spacing_h = 50.0;
                     let spacing_v = 20.0;
                     let columns = 2;
-                    let offset = vec2(spacing_h * (i % columns) as f32, spacing_v * (i / columns) as f32); 
+                    let offset = vec2(
+                        spacing_h * (i % columns) as f32,
+                        spacing_v * (i / columns) as f32,
+                    );
                     if ui.button(vec2(2.0, 24.0) + offset, *label) {
                         self.dropper.set_material(*cell);
                     }
@@ -252,19 +256,34 @@ impl Application {
             });
     }
 
-    fn ui(&mut self) {
-        self.ui_tool();
-        self.ui_world();
-        self.ui_performance();
+    fn ui_rendering(&mut self) {
+        widgets::Window::new(hash!(), vec2(0.0, 500.0), vec2(200.0, 150.0))
+            .label("Rendering")
+            .movable(false)
+            .ui(&mut root_ui(), |ui| {
+                if ui.button(None, "Single Colored") {
+                    self.renderer = Box::from(SingleColorRenderer::new());
+                    self.renderer.fit_simulation(&self.simulation);
+                }
+                if ui.button(None, "Textures") {
+                    self.renderer = Box::from(TexturedRenderer::new());
+                    self.renderer.fit_simulation(&self.simulation);
+                }
+            }
+        );
+    }
+
+    fn handle_file_explorer(&mut self) {
+        // Ugly work-around to make the borrow-checker-happy
         match self.file_explorer.state() {
             file_explorer::State::SAVE => {
                 let on_save = |path| {
                     let serialized =
                         serde_json::to_string(&self.simulation.to_save_data()).unwrap();
-                        std::fs::create_dir_all("./saves").unwrap();
-                        std::fs::write(path, serialized).unwrap();
+                    std::fs::create_dir_all("./saves").unwrap();
+                    std::fs::write(path, serialized).unwrap();
                 };
-                 self.file_explorer.ui(on_save, |_|{});
+                self.file_explorer.ui(on_save, |_| {});
             }
             file_explorer::State::LOAD => {
                 let on_load = |path| {
@@ -279,9 +298,17 @@ impl Application {
                         ));
                     }
                 };
-                self.file_explorer.ui(|_|{}, on_load);
+                self.file_explorer.ui(|_| {}, on_load);
             }
-            file_explorer::State::CLOSED => {},
+            file_explorer::State::CLOSED => {}
         }
+    }
+
+    fn ui(&mut self) {
+        self.ui_tool();
+        self.ui_world();
+        self.ui_performance();
+        self.ui_rendering();
+        self.handle_file_explorer();
     }
 }
