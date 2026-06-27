@@ -271,7 +271,7 @@ impl Application {
                     self.renderer = Box::from(SingleColorRenderer::new());
                     self.renderer.fit_simulation(&self.simulation);
                 }
-                if ui.button(None, "Textures") {
+                if ui.button(None, "Textured") {
                     self.renderer = Box::from(TexturedRenderer::new());
                     self.renderer.fit_simulation(&self.simulation);
                 }

@@ -61,7 +61,7 @@ impl Cell {
         match self {
             Cell::Barrier => 0,
             Cell::Air     => 1,
-            Cell::Sand    => 4,
+            Cell::Sand    => 3,
             Cell::Stone   => 0,
             Cell::Water   => 2,
             Cell::Lava    => 2,
